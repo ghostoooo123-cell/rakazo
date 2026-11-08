@@ -119,6 +119,8 @@ export interface ReplyState {
   pendingProgress: string;
   lastProgressAt: number;
   hasStreamedText: boolean;
+  /** This attempt already logged its own first visible reply text. */
+  attemptFirstVisibleLogged: boolean;
   /**
    * Set by a tool call or a new assistant message: the next text starts a new
    * assistant turn and needs a break from the earlier text that stayed in this reply.
@@ -266,7 +268,7 @@ export interface RunContext {
   runId: string;
   workerId: string;
   fence: number;
-  attempt: { id: string };
+  attempt: { id: string; startedAt?: Date };
   bot: Bot & { computer: Computer | null };
   thread: Thread;
   task: Task;

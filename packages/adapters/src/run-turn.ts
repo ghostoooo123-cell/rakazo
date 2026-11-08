@@ -57,6 +57,7 @@ import {
   flushProgress,
   mayBeSilentEnding,
   nextProgressNonce,
+  noteAttemptFirstVisible,
   progressHeldForSilence,
   publishMidTurnNarration,
   publishNarrationBeforeAsk,
@@ -311,6 +312,7 @@ async function streamProgress(ctx: RunContext, event: RuntimeEvent<"progress">) 
       runId,
       payload: { delta: reply.pendingProgress, streaming: true },
     });
+    noteAttemptFirstVisible(ctx);
     reply.pendingProgress = "";
     reply.lastProgressAt = Date.now();
   }

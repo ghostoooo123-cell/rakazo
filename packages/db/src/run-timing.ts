@@ -53,6 +53,8 @@ export function runTimingFields(run: {
   const origin = run.sourceMessage?.createdAt ?? run.createdAt;
   const elapsed = (end: Date, start: Date) => Math.max(0, end.getTime() - start.getTime());
   return {
+    // These durations span the run since its origin, including earlier attempts and idle time.
+    "run.timing_scope": "run_lifetime",
     "run.trigger": run.trigger,
     "run.pre_run_wait_ms": elapsed(run.createdAt, origin),
     ...(run.startedAt ? { "run.queue_wait_ms": elapsed(run.startedAt, run.createdAt) } : {}),
@@ -88,4 +90,18 @@ export async function readRunTimingFields(prisma: PrismaClient, runId: string) {
   } catch {
     return {};
   }
+}
+
+/**
+ * `run.execution_started` is written before this attempt produces output.
+ * A `run.first_response_ms` already on that line belongs to an earlier attempt.
+ */
+export function executionStartLogFields(
+  timing: Record<string, string | number>,
+): Record<string, string | number | boolean> {
+  return {
+    ...timing,
+    "run.timing_scope": "run_lifetime",
+    "run.first_response_prior": typeof timing["run.first_response_ms"] === "number",
+  };
 }
