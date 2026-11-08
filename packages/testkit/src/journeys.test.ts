@@ -648,7 +648,9 @@ describeJourneys("required product journeys", () => {
       userId: adaActor.userId,
       signal: new AbortController().signal,
     };
-    const store = new MarkdownMemoryStore(appPrisma);
+    // Owner/system client: appPrisma without runAsTenant is blocked by RLS and yields
+    // empty reads (see pin-test-env / agent-import.postgres.test.ts).
+    const store = new MarkdownMemoryStore(prisma);
     const alphaPrompt = await loadAgentMemoryContext(store, botA.id, { ...ctx, botId: botA.id });
     const betaPrompt = await loadAgentMemoryContext(store, botB.id, { ...ctx, botId: botB.id });
     expect(alphaPrompt).toContain(fact);
@@ -677,7 +679,7 @@ describeJourneys("required product journeys", () => {
       documentId: alphaDoc.id,
       content: `# Alpha\n\n${updated}\n`,
     });
-    const reloaded = new MarkdownMemoryStore(appPrisma);
+    const reloaded = new MarkdownMemoryStore(prisma);
     const afterReload = await loadAgentMemoryContext(reloaded, botA.id, {
       ...ctx,
       botId: botA.id,
