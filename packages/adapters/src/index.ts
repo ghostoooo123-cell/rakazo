@@ -146,6 +146,7 @@ export * from "./payment-wallets.js";
 export * from "./pi-catalog-availability.js";
 export * from "./pi-codex-catalog.js";
 export * from "./pi-credentials.js";
+export * from "./pi-host-compatible.js";
 export * from "./pi-live-catalog.js";
 export * from "./pi-live-model.js";
 export * from "./pi-models.js";

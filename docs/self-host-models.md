@@ -92,6 +92,31 @@ way by default.
 Only configure an endpoint you control: prompts, attachments, and tool results sent to that model
 leave Rakazo through this URL. Leave `RAKAZO_LOCAL_MODELS` blank to disable the provider.
 
+## A second server model
+
+Local models share one address. To offer one extra model on a different OpenAI-compatible address,
+set all three on the API and worker:
+
+```env
+RAKAZO_HOST_COMPAT_MODELS=your-model-id
+RAKAZO_HOST_COMPAT_URL=https://models.example/v1
+RAKAZO_HOST_COMPAT_API_KEY=replace-with-the-server-key
+```
+
+The model is listed for every account on this server. It does not change `PI_DEFAULT_MODEL`,
+rewrite existing bot choices, or replace a person's own connections. It is text only unless the
+same id is also listed in `RAKAZO_HOST_COMPAT_VISION_MODELS`. Optional
+`RAKAZO_HOST_COMPAT_CONTEXT_WINDOW` and `RAKAZO_HOST_COMPAT_MAX_TOKENS` default to 32768 and 4096.
+`RAKAZO_HOST_COMPAT_REASONING_MODELS` lists ids that accept `reasoning_effort`. Leave the three
+required values empty and the extra model stays off. `RAKAZO_OPENAI_COMPAT_ALLOW_PUBLIC=0` also
+turns it off. The address must be https, public, and different from `RAKAZO_LOCAL_MODELS_URL`.
+
+The web container does not receive the key. A stack that pins the app image by digest needs a last
+compose file that points only `api` and `worker` at an image built with this change; changing
+`RAKAZO_IMAGE` does not replace a hardcoded digest. Copy
+`infra/compose/docker-compose.host-compat.example.yml` and fill in the image digest after the
+build.
+
 ## Ollama Cloud
 
 In **Settings → Models**, choose **Ollama Cloud**, paste an API key from ollama.com, then **Find models**. This uses an OpenAI-compatible connection with no environment configuration, and stays available when `RAKAZO_OPENAI_COMPAT_ALLOW_PUBLIC=0`.

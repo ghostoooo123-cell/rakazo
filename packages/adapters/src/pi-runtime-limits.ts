@@ -1,5 +1,6 @@
 import type { Api, Model } from "@earendil-works/pi-ai";
 import { DEFAULT_MODEL_MAX_TOKENS } from "@rakazo/contracts";
+import { HOST_COMPATIBLE_PROVIDER_ID } from "./pi-host-compatible-id.js";
 import { LOCAL_PROVIDER_ID } from "./pi-local-provider-id.js";
 
 /** Per-attempt wait for response headers; this does not cap active streaming duration. */
@@ -122,15 +123,23 @@ export function effectiveOutputReserve(contextWindow: number, maxTokens: number)
 
 /**
  * The output cap the operator chose for a model that has no per-connection field: the local
- * model server's own limit, when RAKAZO_LOCAL_MAX_TOKENS is set. Unset, and for other providers,
- * the defaults apply.
+ * model server's own limit, when RAKAZO_LOCAL_MAX_TOKENS is set, or the extra server model's
+ * limit, when RAKAZO_HOST_COMPAT_MAX_TOKENS is set. Unset, and for other providers, the defaults
+ * apply.
  */
 export function operatorMaxTokens(
   model: Pick<Model<Api>, "provider" | "maxTokens">,
 ): number | undefined {
-  return model.provider === LOCAL_PROVIDER_ID && process.env.RAKAZO_LOCAL_MAX_TOKENS?.trim()
-    ? model.maxTokens
-    : undefined;
+  if (model.provider === LOCAL_PROVIDER_ID && process.env.RAKAZO_LOCAL_MAX_TOKENS?.trim()) {
+    return model.maxTokens;
+  }
+  if (
+    model.provider === HOST_COMPATIBLE_PROVIDER_ID &&
+    process.env.RAKAZO_HOST_COMPAT_MAX_TOKENS?.trim()
+  ) {
+    return model.maxTokens;
+  }
+  return undefined;
 }
 
 /**

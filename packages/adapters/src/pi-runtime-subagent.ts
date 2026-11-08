@@ -4,6 +4,7 @@ import { isTerminatingReplyResult, terminatingReplyText } from "./approval-effec
 import { withAutomatedLabels } from "./automated-messages.js";
 import { DELEGATION_TOOL_NAMES } from "./builtin-tools.js";
 import { withCloudflareAuth } from "./cloudflare-ai-gateway.js";
+import { guardHostCompatibleFetch } from "./pi-host-compatible.js";
 import { estimatePiImageTokens } from "./pi-image-context.js";
 import { COMPUTER_MODE_TOOLS } from "./pi-runtime-computer-mode.js";
 import {
@@ -253,7 +254,10 @@ export async function executeSubagent(
       fallbackAwareModelStream(
         retryState,
         ctx,
-        withAutomatedLabels({ ...options, fetch: host.modelFetch ?? options?.fetch }),
+        withAutomatedLabels({
+          ...options,
+          fetch: guardHostCompatibleFetch(host.modelFetch ?? options?.fetch),
+        }),
       ),
     getApiKey: async () =>
       hasBackups
