@@ -9,6 +9,7 @@ import {
   LOCAL_MODEL_LABELS_ENV,
   LOCAL_PROVIDER_ID,
   localModelIds,
+  localModelLabelEntries,
   localModelLabels,
 } from "./pi-local-provider-id.js";
 
@@ -23,6 +24,7 @@ export {
   LOCAL_MODEL_LABELS_ENV,
   LOCAL_PROVIDER_ID,
   localModelIds,
+  localModelLabelEntries,
   localModelLabels,
 };
 
@@ -71,7 +73,7 @@ function localModel(id: string): Model<"openai-completions"> {
   return {
     id,
     // Catalog label only; the wire request still uses `id`.
-    name: localModelLabels().get(id) ?? id,
+    name: localModelLabelEntries().get(id)?.label ?? id,
     api: "openai-completions",
     provider: LOCAL_PROVIDER_ID,
     baseUrl: localBaseUrl(),

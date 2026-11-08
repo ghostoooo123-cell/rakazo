@@ -17,11 +17,17 @@ import {
   assertHttpsForKeyedOpenAiCompatibleUrl,
   isPrivateOpenAiCompatibleHostname,
 } from "./openai-compatible-url.js";
-import { HOST_COMPATIBLE_PROVIDER_ID, isHostCompatibleProvider } from "./pi-host-compatible-id.js";
+import {
+  HOST_COMPATIBLE_PROVIDER_ID,
+  hostCompatibleModelLabelEntries,
+  isHostCompatibleProvider,
+} from "./pi-host-compatible-id.js";
 
 export {
+  HOST_COMPAT_MODEL_LABELS_ENV,
   HOST_COMPATIBLE_CONNECTION_ERROR,
   HOST_COMPATIBLE_PROVIDER_ID,
+  hostCompatibleModelLabelEntries,
   isHostCompatibleProvider,
 } from "./pi-host-compatible-id.js";
 
@@ -215,7 +221,8 @@ function hostModel(config: HostCompatibleConfig, id: string): Model<"openai-comp
   const reasoning = config.reasoningModelIds.has(id);
   return {
     id,
-    name: id,
+    // Catalog label only; the wire request still uses `id`.
+    name: hostCompatibleModelLabelEntries().get(id)?.label ?? id,
     api: "openai-completions",
     provider: HOST_COMPATIBLE_PROVIDER_ID,
     baseUrl: config.baseUrl,

@@ -136,11 +136,17 @@ export function ModelRoleSettings({
     options.find((option) => backupChoiceKey(option) === backupChoiceKey(choice));
   const modelLabel = (choice: ModelRoleChoice) =>
     entryFor(choice)?.label ?? optionFor(choice)?.label ?? choice.modelId;
-  const providerName = (choice: ModelRoleChoice) =>
-    entryFor(choice)?.providerName ??
-    optionFor(choice)?.providerName ??
-    providers.find((provider) => provider.id === choice.provider)?.name ??
-    choice.provider;
+  const providerName = (choice: ModelRoleChoice) => {
+    const entry = entryFor(choice);
+    // Managed rows show the catalog alias alone — no Host / wire-provider subtitle.
+    if (entry?.managed && !choice.credentialId) return entry.providerName ?? "";
+    return (
+      entry?.providerName ||
+      optionFor(choice)?.providerName ||
+      providers.find((provider) => provider.id === choice.provider)?.name ||
+      choice.provider
+    );
+  };
   // What runs when the member chose no first model; named in the empty row.
   const deployment = state.settings?.deploymentPrimary ?? null;
   const deploymentName = deployment ? modelLabel(deployment) : null;
@@ -268,9 +274,11 @@ export function ModelRoleSettings({
           )
           .map((option) => ({
             key: modelRoleChoiceKey(option),
-            label: withConnectionName(option.label, option.connectionName),
+            label: option.connectionName
+              ? withConnectionName(option.label, option.connectionName)
+              : option.label,
             modelLabel: option.label,
-            providerLabel: option.connectionName,
+            ...(option.connectionName ? { providerLabel: option.connectionName } : {}),
             provider: option.provider,
             modelId: option.modelId,
           })),
@@ -410,7 +418,9 @@ export function ModelRoleSettings({
           ...(showThinking && thinking
             ? [t("Thinking: {level}", { level: thinkingLevelLabel(thinking, t) })]
             : []),
-        ].join(", ");
+        ]
+          .filter(Boolean)
+          .join(", ");
         return (
           <RowMenu
             key={modelRoleChoiceKey(choice)}

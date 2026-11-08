@@ -8,7 +8,8 @@ import {
   MODEL_KEY_REJECTED_ERROR,
 } from "@rakazo/contracts";
 import { HOST_COMPATIBLE_BILLING, hostCompatibleProvider } from "./pi-host-compatible.js";
-import { LOCAL_PROVIDER_ID, registerLocalProvider } from "./pi-local-provider.js";
+import { hostCompatibleModelLabelEntries } from "./pi-host-compatible-id.js";
+import { LOCAL_PROVIDER_ID, localModelLabelEntries, registerLocalProvider } from "./pi-local-provider.js";
 import { applyPiModelCompatibility } from "./pi-model-compat.js";
 import { loadProviderOAuth, SUBSCRIPTION_SIGN_IN_PROVIDERS } from "./pi-oauth.js";
 import {
@@ -267,19 +268,23 @@ function hostCompatibleCatalogEntries(): PiCatalogEntry[] {
   if (!provider) return [];
   const models = provider.getModels();
   const modelIds = models.map((model) => model.id);
+  const labels = hostCompatibleModelLabelEntries();
   return models.map((model) => {
     const thinkingLevels = getSupportedThinkingLevels(model) as ThinkingLevel[];
+    const detail = labels.get(model.id)?.detail;
     return {
       provider: provider.id,
-      providerName: provider.name,
+      // No "Host" suffix on selected rows; the menu label is enough.
+      providerName: "",
       id: model.id,
       label: catalogModelLabel(model.id, model.name, modelIds),
-      billing: HOST_COMPATIBLE_BILLING,
+      billing: detail ? `${HOST_COMPATIBLE_BILLING} (${detail})` : HOST_COMPATIBLE_BILLING,
       auth: "api-key" as const,
       subscription: false,
       reasoning: Boolean(model.reasoning),
       thinkingLevels,
       images: model.input.includes("image"),
+      ...(detail ? { authHint: detail } : {}),
     };
   });
 }
@@ -323,20 +328,25 @@ function buildPiCatalog(): PiCatalogEntry[] {
       ),
     );
     const modelIds = providerModels.map((model) => model.id);
+    const localLabels = provider.id === LOCAL_PROVIDER_ID ? localModelLabelEntries() : null;
     for (const model of providerModels) {
       if (!catalogModelServesAgents(model)) hiddenCatalogKeys.add(`${provider.id}:${model.id}`);
       const thinkingLevels = getSupportedThinkingLevels(model) as ThinkingLevel[];
+      const detail = localLabels?.get(model.id)?.detail;
+      const rowBilling = detail ? `${billing} (${detail})` : billing;
       entries.push({
         provider: provider.id,
-        providerName,
+        // Operator-managed local rows show the menu alias alone (no "Local …" subtitle).
+        providerName: provider.id === LOCAL_PROVIDER_ID ? "" : providerName,
         id: model.id,
         recommended: isRecommendedCatalogModel(provider.id, model.id),
         label: catalogModelLabel(model.id, model.name, modelIds),
-        billing,
+        billing: rowBilling,
         auth,
         oauthLabel,
         authHint:
-          provider.id === OPENAI_COMPATIBLE_PROVIDER_ID ? "Custom server" : signInMeta?.hint,
+          detail ??
+          (provider.id === OPENAI_COMPATIBLE_PROVIDER_ID ? "Custom server" : signInMeta?.hint),
         subscription,
         signIn: signInMeta?.mode,
         reasoning: Boolean(model.reasoning),

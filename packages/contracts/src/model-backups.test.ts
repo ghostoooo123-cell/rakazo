@@ -282,6 +282,26 @@ describe("connected backup model choices", () => {
     ]);
   });
 
+  it("keeps managed operator aliases without a provider subtitle", () => {
+    const managed: ModelCatalogEntry = {
+      provider: "host-compatible",
+      providerName: "",
+      id: "openai/gpt-6.1-terra",
+      label: "GPT",
+      billing: "",
+      managed: true,
+    };
+    expect(connectedBackupOptions([managed], [])).toEqual([
+      {
+        provider: "host-compatible",
+        modelId: "openai/gpt-6.1-terra",
+        label: "GPT",
+        providerName: "",
+        connectionName: "",
+      },
+    ]);
+  });
+
   it("names a connection by its label, adding the provider when the label omits it", () => {
     const base = { provider: "openai-codex", label: "ChatGPT" };
     expect(connectionDisplayName(base, "ChatGPT")).toBe("ChatGPT");

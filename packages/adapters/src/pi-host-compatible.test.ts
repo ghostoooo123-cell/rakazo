@@ -19,12 +19,16 @@ import {
   hostCompatibleRunMaterial,
   readHostCompatibleConfig,
 } from "./pi-host-compatible.js";
-import { HOST_COMPATIBLE_PROVIDER_ID } from "./pi-host-compatible-id.js";
+import {
+  HOST_COMPAT_MODEL_LABELS_ENV,
+  HOST_COMPATIBLE_PROVIDER_ID,
+} from "./pi-host-compatible-id.js";
 import {
   catalogProviderProbeBaseUrl,
   isCatalogProviderBaseUrl,
   listPiCatalog,
 } from "./pi-models.js";
+import { filterOperatorModelsMenu, OPERATOR_MODELS_ONLY_ENV } from "./pi-operator-models.js";
 import { operatorMaxTokens } from "./pi-runtime-limits.js";
 import { resolveModelKey } from "./run-model.js";
 
@@ -122,7 +126,7 @@ describe("optional server model configuration", () => {
     expect(entries).toEqual([
       expect.objectContaining({
         provider: HOST_COMPATIBLE_PROVIDER_ID,
-        providerName: "Host",
+        providerName: "",
         id: MODEL,
         label: MODEL,
         images: false,
@@ -143,6 +147,55 @@ describe("optional server model configuration", () => {
       ).map((choice) => choice.modelId),
     ).toEqual([MODEL]);
     expect(connectedModelChoices([], entries)).toEqual([]);
+  });
+
+  it("shows a short menu label without a Host subtitle and keeps the wire id", () => {
+    stub({ ...validEnv, [HOST_COMPAT_MODEL_LABELS_ENV]: `${MODEL}=GPT` });
+    const entries = listPiCatalog().filter(
+      (entry) => entry.provider === HOST_COMPATIBLE_PROVIDER_ID,
+    );
+    expect(entries).toEqual([
+      expect.objectContaining({
+        provider: HOST_COMPATIBLE_PROVIDER_ID,
+        providerName: "",
+        id: MODEL,
+        label: "GPT",
+      }),
+    ]);
+    const choices = connectedModelChoices(
+      [],
+      entries.map((entry) => ({ ...entry, managed: true })),
+    );
+    expect(choices).toEqual([
+      expect.objectContaining({
+        provider: HOST_COMPATIBLE_PROVIDER_ID,
+        modelId: MODEL,
+        label: "GPT",
+        modelLabel: "GPT",
+      }),
+    ]);
+    expect(choices[0]).not.toHaveProperty("providerLabel");
+    expect(JSON.stringify(choices)).not.toContain("Host");
+    expect(choices[0]?.label).toBe("GPT");
+    expect(choices[0]?.modelId).toBe(MODEL);
+  });
+
+  it("limits the signed-in menu to local and host-compatible when gated", () => {
+    stub({
+      ...validEnv,
+      RAKAZO_LOCAL_MODELS: QWEN,
+      [OPERATOR_MODELS_ONLY_ENV]: "1",
+    });
+    const catalog = [
+      { provider: "openrouter", id: "other" },
+      { provider: HOST_COMPATIBLE_PROVIDER_ID, id: MODEL },
+      { provider: "local", id: QWEN },
+    ];
+    expect(filterOperatorModelsMenu(catalog).map((entry) => entry.provider)).toEqual([
+      HOST_COMPATIBLE_PROVIDER_ID,
+      "local",
+    ]);
+    expect(filterOperatorModelsMenu(catalog, {})).toEqual(catalog);
   });
 });
 

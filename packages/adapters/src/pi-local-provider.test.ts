@@ -12,6 +12,7 @@ import {
   LOCAL_MODEL_LABELS_ENV,
   LOCAL_PROVIDER_ID,
   localBaseUrl,
+  localModelLabelEntries,
   localModelLabels,
   localProvider,
   registerLocalProvider,
@@ -64,10 +65,12 @@ describe("local model provider", () => {
 
   it("keeps the API id while menus can show an operator label", () => {
     const id = "Qwen3.8-Flash-Next";
-    const label = "A100_千问3.8";
+    const label = "千问";
+    const detail = "A100_千问3.8";
     setModels(id);
-    process.env[LOCAL_MODEL_LABELS_ENV] = `${id}=${label},unknown=skip,=bad`;
+    process.env[LOCAL_MODEL_LABELS_ENV] = `${id}=${label}|${detail},unknown=skip,=bad`;
     expect(localModelLabels().get(id)).toBe(label);
+    expect(localModelLabelEntries().get(id)).toEqual({ label, detail });
     expect(configuredLocalModel(LOCAL_PROVIDER_ID, id)).toBe(true);
     expect(configuredLocalModel(LOCAL_PROVIDER_ID, "other")).toBe(false);
     const model = localProvider()?.getModels()[0];
@@ -168,17 +171,17 @@ describe("local model provider", () => {
 
 describe("server-managed local model menu", () => {
   const id = "Qwen3.8-Flash-Next";
-  const label = "A100_千问3.8";
+  const label = "千问";
   const lan = "http://192.168.0.186:8083/v1";
 
   it("lists the alias for every account and pins by API id without a personal key", async () => {
     setModels(id);
-    process.env[LOCAL_MODEL_LABELS_ENV] = `${id}=${label}`;
+    process.env[LOCAL_MODEL_LABELS_ENV] = `${id}=${label}|A100_千问3.8`;
     process.env.RAKAZO_LOCAL_MODELS_URL = lan;
     const catalog = [
       {
         provider: LOCAL_PROVIDER_ID,
-        providerName: "Local (Ollama / LM Studio)",
+        providerName: "",
         id,
         label,
         managed: true,
@@ -193,7 +196,9 @@ describe("server-managed local model menu", () => {
         modelLabel: label,
       }),
     ]);
+    expect(choices[0]).not.toHaveProperty("providerLabel");
     expect(JSON.stringify(choices)).not.toContain(lan);
+    expect(JSON.stringify(choices)).not.toContain("A100_千问3.8");
     expect(resolveSelectableModelId(catalog, LOCAL_PROVIDER_ID, id)).toBe(id);
     expect(resolveSelectableModelId(catalog, LOCAL_PROVIDER_ID, label)).toBe(id);
     expect(

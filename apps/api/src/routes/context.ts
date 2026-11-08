@@ -12,6 +12,7 @@ import {
   createFaviconResolver,
   decisionModelCatalog,
   deploymentModelRole,
+  filterOperatorModelsMenu,
   findConnectedModelCredential,
   hiddenCatalogModel,
   isHostCompatibleProvider,
@@ -182,26 +183,28 @@ export function createRouterContext(deps: RouterDeps) {
       )
     )
       selected = await savedCatalogSelections(deps.prisma, actor.userId);
-    return offeredCatalog(merged, selected).map((entry) => {
-      const funded = entry.provider === auth.managedProvider;
-      // Local and host-compatible models run on the operator's endpoint for every account.
-      const serverModel =
-        isHostCompatibleProvider(entry.provider) || isLocalProvider(entry.provider);
-      if (!funded && !serverModel) return entry;
-      return {
-        ...entry,
-        managed: true,
-        ...(funded
-          ? {
-              billing:
-                auth.secretIdByModel[entry.provider]?.[entry.id] ||
-                auth.secretIdByProvider[entry.provider]
-                  ? entry.billing
-                  : "Uses Rakazo credits",
-            }
-          : {}),
-      };
-    });
+    return filterOperatorModelsMenu(
+      offeredCatalog(merged, selected).map((entry) => {
+        const funded = entry.provider === auth.managedProvider;
+        // Local and host-compatible models run on the operator's endpoint for every account.
+        const serverModel =
+          isHostCompatibleProvider(entry.provider) || isLocalProvider(entry.provider);
+        if (!funded && !serverModel) return entry;
+        return {
+          ...entry,
+          managed: true,
+          ...(funded
+            ? {
+                billing:
+                  auth.secretIdByModel[entry.provider]?.[entry.id] ||
+                  auth.secretIdByProvider[entry.provider]
+                    ? entry.billing
+                    : "Uses Rakazo credits",
+              }
+            : {}),
+        };
+      }),
+    );
   };
 
   // Shown where a member chose no model, so the list names what actually runs.

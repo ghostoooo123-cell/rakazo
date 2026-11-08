@@ -604,8 +604,10 @@ describeJourneys("required product journeys", () => {
   });
 
   it("keeps durable memory isolated per bot across turns, edits, and accounts", async () => {
-    const { loadAgentMemoryContext } = await import("@rakazo/adapters");
-    const { MarkdownMemoryStore } = await import("@rakazo/memory");
+    // Relative imports: testkit does not always resolve workspace package names inside
+    // the production image the way apps/api does (see agent-import.postgres.test.ts).
+    const { loadAgentMemoryContext } = await import("../../adapters/src/memory-context.ts");
+    const { MarkdownMemoryStore } = await import("../../memory/src/index.ts");
     const ada = await signup(app, `bot-memory-${stamp}@rakazo.test`, "Memory Ada");
     const bob = await signup(app, `bot-memory-bob-${stamp}@rakazo.test`, "Memory Bob");
     await runWithoutAsking(ada);

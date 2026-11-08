@@ -1,10 +1,12 @@
+import { parseModelLabelPairs } from "./pi-model-labels.js";
+
 /**
  * Local OpenAI-compatible model server (Ollama, LM Studio, llama.cpp, MLX).
  * Kept apart from pi-local-provider.ts so the runtime limits can name it without loading the provider.
  */
 export const LOCAL_PROVIDER_ID = "local";
 
-/** Optional catalog display names: `api-id=Menu label`, comma-separated. API ids stay unchanged. */
+/** Optional catalog names: `api-id=Menu` or `api-id=Menu|Detail`, comma-separated. */
 export const LOCAL_MODEL_LABELS_ENV = "RAKAZO_LOCAL_MODEL_LABELS";
 
 export function isLocalProvider(provider: string | null | undefined): boolean {
@@ -32,21 +34,18 @@ export function configuredLocalModel(
   return localModelIds(env).includes(modelId);
 }
 
+/** Menu label (+ optional detail) for local ids. The API id stays the request id. */
+export function localModelLabelEntries(
+  env: NodeJS.ProcessEnv = process.env,
+): ReadonlyMap<string, { label: string; detail?: string }> {
+  return parseModelLabelPairs(env[LOCAL_MODEL_LABELS_ENV], new Set(localModelIds(env)));
+}
+
 /** Menu labels for local ids. Unknown or blank pairs are ignored; the API id stays the request id. */
 export function localModelLabels(
   env: NodeJS.ProcessEnv = process.env,
 ): ReadonlyMap<string, string> {
-  const known = new Set(localModelIds(env));
   const labels = new Map<string, string>();
-  for (const part of (env[LOCAL_MODEL_LABELS_ENV] ?? "").split(",")) {
-    const trimmed = part.trim();
-    if (!trimmed) continue;
-    const eq = trimmed.indexOf("=");
-    if (eq <= 0) continue;
-    const id = trimmed.slice(0, eq).trim();
-    const label = trimmed.slice(eq + 1).trim();
-    if (!id || !label || !known.has(id)) continue;
-    labels.set(id, label);
-  }
+  for (const [id, entry] of localModelLabelEntries(env)) labels.set(id, entry.label);
   return labels;
 }

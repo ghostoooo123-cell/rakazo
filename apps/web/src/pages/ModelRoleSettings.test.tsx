@@ -233,6 +233,43 @@ describe("shared role editor", () => {
       expect.anything(),
     );
   });
+  it("shows managed operator aliases alone without wire ids or Host", async () => {
+    const gpt = {
+      provider: "host-compatible",
+      id: "openai/gpt-6.1-terra",
+      label: "GPT",
+      providerName: "",
+      billing: "",
+      managed: true,
+    };
+    const qwen = {
+      provider: "local",
+      id: "Qwen3.8-Flash-Next",
+      label: "千问",
+      providerName: "",
+      billing: "Runs on infrastructure configured by the server operator. (A100_千问3.8)",
+      authHint: "A100_千问3.8",
+      managed: true,
+    };
+    api.forRole.mockResolvedValue([gpt, qwen]);
+    saved = {
+      primary: { provider: gpt.provider, modelId: gpt.id },
+      backups: [{ provider: qwen.provider, modelId: qwen.id }],
+    };
+    await render({ credentials: [], providers: [], providerLabel: (id) => id });
+    const main = container.querySelector('[data-testid="model-role-row-1"]')?.textContent ?? "";
+    const backup = container.querySelector('[data-testid="model-role-row-2"]')?.textContent ?? "";
+    expect(main).toContain("GPT");
+    expect(main).not.toContain("openai/gpt-6.1-terra");
+    expect(main).not.toContain("Host");
+    expect(backup).toContain("千问");
+    expect(backup).not.toContain("Qwen3.8-Flash-Next");
+    expect(backup).not.toContain("A100_千问3.8");
+    await click(trigger("Change GPT"));
+    expect(
+      [...document.querySelectorAll('[role="option"]')].map((entry) => optionName(entry)),
+    ).toEqual(["GPT", "千问"]);
+  });
   it("names the deployment's model and resets to it, keeping the fallbacks", async () => {
     saved = { primary: jev, backups: [mini], deploymentPrimary: chat };
     await render({ modelRole: "approval", title: "Approval model" });
