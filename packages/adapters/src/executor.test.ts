@@ -247,6 +247,7 @@ describe("tool completion audit", () => {
         tool: "mcp__notes__create",
         "tool.outcome": "error",
         "tool.duration_ms": 3,
+        "tool.error_code": "unclassified",
       }),
     ]);
     expect(JSON.stringify(sink.events)).not.toMatch(/private|call-1|call-2/);
@@ -335,6 +336,7 @@ describe("tool completion audit", () => {
       durationMs: 4,
       outcome: "error",
       error: "Rejected [redacted] using Bearer [redacted]",
+      errorCode: "unclassified",
     });
   });
 

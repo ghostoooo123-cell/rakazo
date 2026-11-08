@@ -36,6 +36,7 @@ import type { ThreadEvents } from "@rakazo/db";
 import {
   availableInSpace,
   effectiveMemoryScope,
+  executionStartLogFields,
   isPartialReplyClientNonce,
   isTooManyDatabaseConnections,
   loadRunHistoryMessages,
@@ -444,7 +445,7 @@ export function createRunExecutor(executorDeps: ExecutorDeps) {
         );
         return;
       }
-      let attempt: { id: string };
+      let attempt: { id: string; startedAt: Date };
       // Resumed attempts keep the first start, so lateness reflects when the run began.
       const executionStartedAt = current.startedAt ?? new Date();
       // Classified with the first start, so a retry, resume or later schedule edit keeps it.
@@ -471,9 +472,10 @@ export function createRunExecutor(executorDeps: ExecutorDeps) {
           await releaseComputerExecutionLease(deps.prisma, computerLease).catch(() => undefined);
           return;
         }
-        getLogger().info("run.execution_started", {
-          ...(await readRunTimingFields(deps.prisma, runId)),
-        });
+        getLogger().info(
+          "run.execution_started",
+          executionStartLogFields(await readRunTimingFields(deps.prisma, runId)),
+        );
         attempt = await deps.prisma.attempt.create({
           data: { runId, fence, status: "running" },
         });

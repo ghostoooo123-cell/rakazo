@@ -11,6 +11,7 @@ import {
   redactSecretsAfter,
 } from "@rakazo/core";
 import type { Run } from "@rakazo/db";
+import { getLogger } from "@rakazo/logging";
 import type { ExecutorDeps } from "./executor-deps.js";
 import { IMAGE_RETURNING_COMPUTER_TOOLS } from "./model-vision.js";
 import type { ReplyState, RunContext } from "./run-context.js";
@@ -61,6 +62,7 @@ export async function createReplyState(
     pendingProgress: "",
     lastProgressAt: 0,
     hasStreamedText: false,
+    attemptFirstVisibleLogged: false,
     assistantTurnBreakPending: false,
     redactor: createStreamingRedactor(secrets),
   };
@@ -87,6 +89,24 @@ export async function createReplyState(
 
 export function recordExplicitNoResponse(reply: ReplyState, text: string) {
   reply.explicitNoResponse ||= isExactNoResponse(text) || /\bNO_RESPONSE\b/.test(text);
+}
+
+/**
+ * First reply text of this attempt, measured from the attempt start.
+ * Run-lifetime `first_response_ms` stays on the run and is not reused here.
+ */
+export function noteAttemptFirstVisible(ctx: RunContext) {
+  const { reply } = ctx.state;
+  if (reply.attemptFirstVisibleLogged) return;
+  const startedAt = ctx.attempt.startedAt;
+  if (!startedAt) return;
+  reply.attemptFirstVisibleLogged = true;
+  getLogger().info("attempt.first_visible", {
+    "run.id": ctx.runId,
+    "attempt.id": ctx.attempt.id,
+    "attempt.first_visible_ms": Math.max(0, Date.now() - startedAt.getTime()),
+    "run.first_response_prior": ctx.run.firstResponseAt != null,
+  });
 }
 
 /** Durable interim messages only on genuinely long turns, capped per run. */
@@ -192,6 +212,7 @@ export async function flushProgress(ctx: RunContext) {
       ? { delta: reply.pendingProgress, streaming: true }
       : { text: reply.pendingProgress, streaming: true },
   });
+  noteAttemptFirstVisible(ctx);
   reply.hasStreamedText = true;
   reply.pendingProgress = "";
   reply.lastProgressAt = Date.now();

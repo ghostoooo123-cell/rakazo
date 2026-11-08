@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { isRunResponse, runTimingFields } from "./run-timing.js";
+import { executionStartLogFields, isRunResponse, runTimingFields } from "./run-timing.js";
 
 const at = (seconds: number) => new Date(Date.UTC(2026, 0, 1, 0, 0, seconds));
 
@@ -15,6 +15,7 @@ describe("run response timing", () => {
         completedAt: at(30),
       }),
     ).toEqual({
+      "run.timing_scope": "run_lifetime",
       "run.trigger": "follow_up",
       "run.pre_run_wait_ms": 10_000,
       "run.queue_wait_ms": 2_000,
@@ -22,6 +23,32 @@ describe("run response timing", () => {
       "run.total_ms": 30_000,
       "run.execution_wall_ms": 18_000,
     });
+  });
+
+  it("marks a continuation start so the stored first response is not this attempt", () => {
+    const timing = runTimingFields({
+      trigger: "user",
+      sourceMessage: { createdAt: at(0) },
+      createdAt: at(10),
+      startedAt: at(12),
+      firstResponseAt: at(15),
+      completedAt: null,
+    });
+    expect(executionStartLogFields(timing)).toMatchObject({
+      "run.timing_scope": "run_lifetime",
+      "run.first_response_ms": 15_000,
+      "run.first_response_prior": true,
+    });
+    expect(executionStartLogFields(timing)).not.toHaveProperty("run.total_ms");
+    expect(executionStartLogFields(timing)).not.toHaveProperty("run.execution_wall_ms");
+    expect(
+      executionStartLogFields({
+        "run.timing_scope": "run_lifetime",
+        "run.trigger": "user",
+        "run.pre_run_wait_ms": 0,
+        "run.queue_wait_ms": 18,
+      }),
+    ).toMatchObject({ "run.first_response_prior": false });
   });
 
   it("does not invent a response or execution time for a silent or never-started run", () => {
@@ -34,7 +61,12 @@ describe("run response timing", () => {
         firstResponseAt: null,
         completedAt: at(10),
       }),
-    ).toEqual({ "run.trigger": "routine", "run.pre_run_wait_ms": 0, "run.total_ms": 10_000 });
+    ).toEqual({
+      "run.timing_scope": "run_lifetime",
+      "run.trigger": "routine",
+      "run.pre_run_wait_ms": 0,
+      "run.total_ms": 10_000,
+    });
   });
 
   it("counts streamed reply text, durable replies and action cards, excluding activity and hidden output", () => {
