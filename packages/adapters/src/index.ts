@@ -149,6 +149,7 @@ export * from "./pi-credentials.js";
 export * from "./pi-host-compatible.js";
 export * from "./pi-live-catalog.js";
 export * from "./pi-live-model.js";
+export * from "./pi-local-provider-id.js";
 export * from "./pi-models.js";
 export * from "./pi-oauth.js";
 export * from "./pi-openai-compatible-provider.js";

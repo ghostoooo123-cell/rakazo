@@ -22,6 +22,7 @@ import type { CodexLiveCatalog, CodexLiveReadOptions } from "./pi-codex-catalog.
 import { codexLiveListsModel } from "./pi-codex-catalog.js";
 import { configuredHostCompatibleModel } from "./pi-host-compatible.js";
 import { liveCatalogEntry, providerLiveListsModel } from "./pi-live-catalog.js";
+import { configuredLocalModel } from "./pi-local-provider-id.js";
 import { listPiCatalog, offeredCatalog, scriptedCatalogEntry } from "./pi-models.js";
 import type { StoredModelSecret } from "./pi-oauth.js";
 import { parseModelSecret } from "./pi-oauth.js";
@@ -584,7 +585,12 @@ export async function validateBotModelChange(
   const scope = { userId: input.userId, spaceId: input.spaceId };
   const { provider, model } = input;
   const changing = provider !== input.current?.provider || model !== input.current?.model;
-  if (changing && provider && model && configuredHostCompatibleModel(provider, model)) {
+  if (
+    changing &&
+    provider &&
+    model &&
+    (configuredHostCompatibleModel(provider, model) || configuredLocalModel(provider, model))
+  ) {
     const allowed = listPiCatalog().find(
       (entry) => entry.provider === provider && entry.id === model,
     )?.thinkingLevels;
@@ -766,7 +772,9 @@ export async function validateConnectedModelChoice(
   modelId: string,
   resolution: ConnectedModelResolution = {},
 ) {
-  if (configuredHostCompatibleModel(provider, modelId)) return undefined;
+  if (configuredHostCompatibleModel(provider, modelId) || configuredLocalModel(provider, modelId)) {
+    return undefined;
+  }
   if (
     resolution.hostedProvider === provider &&
     (await hasHostedModelCredits(prisma, actor, provider))
@@ -885,7 +893,12 @@ export function pinnedModelCredentialError(
   credential: { defaultModel: string | null } | null,
 ): string | undefined {
   if (!choice.modelProvider || !usableModelId(choice.modelId)) return undefined;
-  if (configuredHostCompatibleModel(choice.modelProvider, choice.modelId)) return undefined;
+  if (
+    configuredHostCompatibleModel(choice.modelProvider, choice.modelId) ||
+    configuredLocalModel(choice.modelProvider, choice.modelId)
+  ) {
+    return undefined;
+  }
   if (!credential) return PINNED_PROVIDER_NOT_CONNECTED;
   // The enabled list lives in the secret, so the run path checks openai-compatible ids.
   if (choice.modelProvider === OPENAI_COMPATIBLE_PROVIDER_ID) return undefined;

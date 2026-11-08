@@ -543,10 +543,10 @@ it("offers managed models without a personal key and hides unconnected providers
     { provider: "hosted", id: "large", label: "Large", managed: true },
     { provider: "other", id: "unconnected", label: "Unconnected" },
   ];
-  expect(connectedModelChoices([], catalog).map((choice) => choice.key)).toEqual([
-    "hosted::small",
-    "hosted::large",
-  ]);
+  const managed = connectedModelChoices([], catalog);
+  expect(managed.map((choice) => choice.key)).toEqual(["hosted::small", "hosted::large"]);
+  // Operator-managed rows show the catalog alias alone, not a connection suffix.
+  expect(managed.map((choice) => choice.label)).toEqual(["Small", "Large"]);
   expect(connectedModelChoices([{ provider: "hosted", label: "Hosted" }], catalog)).toHaveLength(2);
 });
 

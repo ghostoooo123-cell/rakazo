@@ -12,6 +12,7 @@ import { resolveAutoReviewChecker } from "./auto-review.js";
 import type { ModelChoice, ModelCredential } from "./model-selection.js";
 import { findConnectedModelCredential } from "./model-selection.js";
 import { configuredHostCompatibleModel } from "./pi-host-compatible.js";
+import { configuredLocalModel } from "./pi-local-provider-id.js";
 
 /** The deployment's configuration that stands in for a member who chose nothing. */
 export type DeploymentModelDefaults = {
@@ -111,7 +112,8 @@ export function selectConfiguredModel(input: {
     Boolean(
       credential ||
         (provider && provider === input.hostedProvider) ||
-        configuredHostCompatibleModel(provider, modelId),
+        configuredHostCompatibleModel(provider, modelId) ||
+        configuredLocalModel(provider, modelId),
     );
   // The override provider, model and credential must win together.
   const useOverride =

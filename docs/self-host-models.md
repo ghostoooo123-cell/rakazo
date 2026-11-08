@@ -67,11 +67,18 @@ RAKAZO_LOCAL_MODELS=qwen3:4b,llama3.1:8b,qwen3-vl
 RAKAZO_LOCAL_MODELS_URL=http://127.0.0.1:11434/v1
 RAKAZO_LOCAL_CONTEXT_WINDOW=32768
 RAKAZO_LOCAL_MAX_TOKENS=4096
+# Optional: catalog display names. API ids stay on the left; menus show the label.
+# RAKAZO_LOCAL_MODEL_LABELS=Qwen3.8-Flash-Next=A100_千问3.8
 # Optional: model ids on this endpoint that accept images (screenshot computer tools).
 RAKAZO_LOCAL_VISION_MODELS=qwen3-vl
 # Optional: model ids on this endpoint that accept OpenAI-style reasoning_effort.
 RAKAZO_LOCAL_REASONING_MODELS=qwen3:4b
 ```
+
+Local models are listed for every signed-in account on this server. Members do not enter a URL or
+key; the API and worker keep `RAKAZO_LOCAL_MODELS_URL` server-side. Optional
+`RAKAZO_LOCAL_MODEL_LABELS` sets menu text (`api-id=Label`) without changing the id sent to the
+model server or rewriting existing bot choices.
 
 A model in `RAKAZO_LOCAL_REASONING_MODELS` offers thinking levels and sends the chosen level as
 `reasoning_effort` (`medium` by default, `none` when thinking is off). Other local models never

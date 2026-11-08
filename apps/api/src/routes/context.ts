@@ -6,6 +6,7 @@ import {
   CodexCatalogCache,
   codexLiveCatalogsForSpace,
   configuredHostCompatibleModel,
+  configuredLocalModel,
   connectedModelSeesImages,
   connectionServesModel,
   createFaviconResolver,
@@ -14,6 +15,7 @@ import {
   findConnectedModelCredential,
   hiddenCatalogModel,
   isHostCompatibleProvider,
+  isLocalProvider,
   kickModelCredentialRefresh,
   listAvailablePiCatalog,
   McpOAuthBroker,
@@ -182,7 +184,9 @@ export function createRouterContext(deps: RouterDeps) {
       selected = await savedCatalogSelections(deps.prisma, actor.userId);
     return offeredCatalog(merged, selected).map((entry) => {
       const funded = entry.provider === auth.managedProvider;
-      const serverModel = isHostCompatibleProvider(entry.provider);
+      // Local and host-compatible models run on the operator's endpoint for every account.
+      const serverModel =
+        isHostCompatibleProvider(entry.provider) || isLocalProvider(entry.provider);
       if (!funded && !serverModel) return entry;
       return {
         ...entry,
@@ -296,7 +300,9 @@ export function createRouterContext(deps: RouterDeps) {
         resolution,
       );
       // A server model runs without a personal connection. Computer mode still needs images.
-      const serverModel = configuredHostCompatibleModel(choice.provider, choice.modelId);
+      const serverModel =
+        configuredHostCompatibleModel(choice.provider, choice.modelId) ||
+        configuredLocalModel(choice.provider, choice.modelId);
       if (
         !credential &&
         !serverModel &&

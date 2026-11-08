@@ -39,7 +39,7 @@ import {
   hostCompatibleRunMaterial,
   isHostCompatibleProvider,
 } from "./pi-host-compatible.js";
-import { LOCAL_PROVIDER_ID } from "./pi-local-provider.js";
+import { configuredLocalModel, LOCAL_PROVIDER_ID } from "./pi-local-provider-id.js";
 import type { StoredModelSecret } from "./pi-oauth.js";
 import {
   CHATGPT_OAUTH_PROVIDER,
@@ -454,7 +454,8 @@ export async function resolveConnectedModelKey(
   if (
     !credential &&
     provider !== hostedProvider &&
-    !configuredHostCompatibleModel(provider, modelId)
+    !configuredHostCompatibleModel(provider, modelId) &&
+    !configuredLocalModel(provider, modelId)
   ) {
     throw new Error(PINNED_PROVIDER_NOT_CONNECTED);
   }

@@ -3,6 +3,7 @@ import { SecretStoreUnavailableError } from "@rakazo/adapter-kit";
 import {
   HOST_COMPATIBLE_CONNECTION_ERROR,
   isHostCompatibleProvider,
+  isLocalProvider,
   listPiCatalog,
   ModelSignInError,
   modelCredentialDto,
@@ -196,7 +197,7 @@ export function modelsRoutes(ctx: RouterContext) {
         return { ok: true as const };
       }),
       connect: authed.models.connect.handler(async ({ context, input }) => {
-        if (isHostCompatibleProvider(input.provider)) {
+        if (isHostCompatibleProvider(input.provider) || isLocalProvider(input.provider)) {
           throw new ORPCError("BAD_REQUEST", { message: HOST_COMPATIBLE_CONNECTION_ERROR });
         }
         const record = await firstModelConnectAnalytics(deps, context.actor, "api_key");
@@ -279,7 +280,7 @@ export function modelsRoutes(ctx: RouterContext) {
         },
       ),
       probeCatalog: authed.models.probeCatalog.handler(async ({ context, input }) => {
-        if (isHostCompatibleProvider(input.provider)) {
+        if (isHostCompatibleProvider(input.provider) || isLocalProvider(input.provider)) {
           throw new ORPCError("BAD_REQUEST", { message: HOST_COMPATIBLE_CONNECTION_ERROR });
         }
         try {
@@ -296,7 +297,7 @@ export function modelsRoutes(ctx: RouterContext) {
         }
       }),
       beginOAuth: authed.models.beginOAuth.handler(async ({ context, input }) => {
-        if (isHostCompatibleProvider(input.provider)) {
+        if (isHostCompatibleProvider(input.provider) || isLocalProvider(input.provider)) {
           throw new ORPCError("BAD_REQUEST", { message: HOST_COMPATIBLE_CONNECTION_ERROR });
         }
         // An older app's sign-in renews the provider's newest connection, bound now so a

@@ -249,6 +249,17 @@ function freeFormChoice(credential: CredentialModelRef, modelId: string): Connec
 function catalogChoices(providerModels: readonly CatalogModelRef[]): ConnectedModelChoice[] {
   return providerModels.map((entry) => {
     const modelId = resolveSelectableModelId(providerModels, entry.provider, entry.id);
+    // Operator-managed rows have no personal connection; show the catalog alias alone.
+    if (entry.managed) {
+      return {
+        key: modelOptionKey(entry.provider, modelId),
+        provider: entry.provider,
+        modelId,
+        label: entry.label,
+        modelLabel: entry.label,
+        images: entry.images,
+      };
+    }
     return {
       key: modelOptionKey(entry.provider, modelId),
       provider: entry.provider,
