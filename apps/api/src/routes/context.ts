@@ -5,6 +5,7 @@ import {
   CHATGPT_OAUTH_PROVIDER,
   CodexCatalogCache,
   codexLiveCatalogsForSpace,
+  configuredHostCompatibleModel,
   connectedModelSeesImages,
   connectionServesModel,
   createFaviconResolver,
@@ -12,6 +13,7 @@ import {
   deploymentModelRole,
   findConnectedModelCredential,
   hiddenCatalogModel,
+  isHostCompatibleProvider,
   kickModelCredentialRefresh,
   listAvailablePiCatalog,
   McpOAuthBroker,
@@ -178,19 +180,24 @@ export function createRouterContext(deps: RouterDeps) {
       )
     )
       selected = await savedCatalogSelections(deps.prisma, actor.userId);
-    return offeredCatalog(merged, selected).map((entry) =>
-      entry.provider === auth.managedProvider
-        ? {
-            ...entry,
-            managed: true,
-            billing:
-              auth.secretIdByModel[entry.provider]?.[entry.id] ||
-              auth.secretIdByProvider[entry.provider]
-                ? entry.billing
-                : "Uses Rakazo credits",
-          }
-        : entry,
-    );
+    return offeredCatalog(merged, selected).map((entry) => {
+      const funded = entry.provider === auth.managedProvider;
+      const serverModel = isHostCompatibleProvider(entry.provider);
+      if (!funded && !serverModel) return entry;
+      return {
+        ...entry,
+        managed: true,
+        ...(funded
+          ? {
+              billing:
+                auth.secretIdByModel[entry.provider]?.[entry.id] ||
+                auth.secretIdByProvider[entry.provider]
+                  ? entry.billing
+                  : "Uses Rakazo credits",
+            }
+          : {}),
+      };
+    });
   };
 
   // Shown where a member chose no model, so the list names what actually runs.
@@ -288,9 +295,11 @@ export function createRouterContext(deps: RouterDeps) {
         choice.modelId,
         resolution,
       );
-      // Computer mode runs only on the member's own connections.
+      // A server model runs without a personal connection. Computer mode still needs images.
+      const serverModel = configuredHostCompatibleModel(choice.provider, choice.modelId);
       if (
         !credential &&
+        !serverModel &&
         (role === "computer" ||
           choice.credentialId ||
           !(entry && "managed" in entry && entry.managed))

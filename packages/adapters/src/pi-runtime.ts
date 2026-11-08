@@ -34,6 +34,7 @@ import {
 import { automated, withAutomatedLabels } from "./automated-messages.js";
 import { withCloudflareAuth } from "./cloudflare-ai-gateway.js";
 import { neutralizeSpeakerLabels } from "./history-speakers.js";
+import { guardHostCompatibleFetch } from "./pi-host-compatible.js";
 import { estimatePiImageTokens } from "./pi-image-context.js";
 import {
   COMPUTER_MODE_TOOLS,
@@ -594,7 +595,10 @@ export class PiAgentRuntime implements AgentRuntime {
             fallbackAwareModelStream(
               fallbackState,
               ctx,
-              withAutomatedLabels({ ...options, fetch: this.modelFetch ?? options?.fetch }),
+              withAutomatedLabels({
+                ...options,
+                fetch: guardHostCompatibleFetch(this.modelFetch ?? options?.fetch),
+              }),
             ),
           getApiKey:
             hasBackups || computer

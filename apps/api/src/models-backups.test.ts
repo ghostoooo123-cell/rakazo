@@ -228,6 +228,59 @@ describe("model catalog offered to pickers", () => {
     ).toEqual([saved]);
     expect(openrouter.some((entry) => entry.id === "anthropic/claude-haiku-5.5")).toBe(true);
   });
+
+  it("lists the optional server model without its address or key, and refuses a personal connection", async () => {
+    const key = "server-key-fixture-9182";
+    const url = "https://models.example.test/v1";
+    vi.stubEnv("RAKAZO_OPENAI_COMPAT_ALLOW_PUBLIC", "1");
+    vi.stubEnv("RAKAZO_HOST_COMPAT_MODELS", "openai/gpt-6.1-terra");
+    vi.stubEnv("RAKAZO_HOST_COMPAT_URL", url);
+    vi.stubEnv("RAKAZO_HOST_COMPAT_API_KEY", key);
+    try {
+      const { call } = setup();
+      const { response } = await call("models/list", null);
+      expect(response.status).toBe(200);
+      const body = await response.json();
+      const text = JSON.stringify(body);
+      expect(text).not.toContain(key);
+      expect(text).not.toContain("models.example.test");
+      const { json } = body as {
+        json: Array<{
+          provider: string;
+          id: string;
+          managed?: boolean;
+          billing?: string;
+          images?: boolean;
+        }>;
+      };
+      expect(json).toContainEqual(
+        expect.objectContaining({
+          provider: "host-compatible",
+          id: "openai/gpt-6.1-terra",
+          managed: true,
+          billing:
+            "Runs on infrastructure configured by the server operator. No model charges from Rakazo.",
+          images: false,
+        }),
+      );
+
+      for (const procedure of ["models/connect", "models/probeCatalog", "models/beginOAuth"]) {
+        const input =
+          procedure === "models/probeCatalog"
+            ? { provider: "host-compatible", apiKey: "personal-key-value" }
+            : procedure === "models/connect"
+              ? { provider: "host-compatible", apiKey: "personal-key-value" }
+              : { provider: "host-compatible" };
+        const rejected = await call(procedure, input);
+        expect(rejected.response.status).toBe(400);
+        const rejectedText = JSON.stringify(await rejected.response.json());
+        expect(rejectedText).toContain("That model is provided by the server.");
+        expect(rejectedText).not.toContain(key);
+      }
+    } finally {
+      vi.unstubAllEnvs();
+    }
+  });
 });
 
 describe("model backup settings API", () => {

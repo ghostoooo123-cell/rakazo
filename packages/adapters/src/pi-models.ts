@@ -7,6 +7,7 @@ import {
   canonicalPiProviderId,
   MODEL_KEY_REJECTED_ERROR,
 } from "@rakazo/contracts";
+import { HOST_COMPATIBLE_BILLING, hostCompatibleProvider } from "./pi-host-compatible.js";
 import { LOCAL_PROVIDER_ID, registerLocalProvider } from "./pi-local-provider.js";
 import { applyPiModelCompatibility } from "./pi-model-compat.js";
 import { loadProviderOAuth, SUBSCRIPTION_SIGN_IN_PROVIDERS } from "./pi-oauth.js";
@@ -102,7 +103,7 @@ export function offeredCatalog<T extends { provider: string; id: string }>(
 
 /** A bundled model priced in the registry, or a live id judged by its id alone. */
 export function hiddenCatalogModel(entry: { provider: string; id: string }): boolean {
-  listPiCatalog();
+  ensureVendorCatalog();
   const key = `${canonicalPiProviderId(entry.provider)}:${entry.id}`;
   return hiddenCatalogKeys.has(key) || !catalogModelServesAgents(entry);
 }
@@ -116,13 +117,13 @@ const trimBaseUrl = (url: string) => url.trim().replace(/\/+$/, "");
 
 /** Whether `url` is one the model registry itself uses for this catalog provider. */
 export function isCatalogProviderBaseUrl(provider: string, url: string): boolean {
-  listPiCatalog();
+  ensureVendorCatalog();
   return catalogBaseUrls.get(canonicalPiProviderId(provider))?.has(trimBaseUrl(url)) ?? false;
 }
 
 /** Pinned models-list URL for a catalog provider, taken from the model registry. */
 export function catalogProviderProbeBaseUrl(provider: string): string | null {
-  listPiCatalog();
+  ensureVendorCatalog();
   return catalogProbeBaseUrls.get(canonicalPiProviderId(provider)) ?? null;
 }
 
@@ -251,9 +252,36 @@ function pinnedCatalogProbeBaseUrl(
   return [...urls][0] ?? null;
 }
 
-export function listPiCatalog(): PiCatalogEntry[] {
+function ensureVendorCatalog(): PiCatalogEntry[] {
   cachedCatalog ??= buildPiCatalog();
   return cachedCatalog;
+}
+
+export function listPiCatalog(): PiCatalogEntry[] {
+  return [...ensureVendorCatalog(), ...hostCompatibleCatalogEntries()];
+}
+
+/** Operator endpoint entries. Kept out of the cached vendor catalog so an empty setting adds nothing. */
+function hostCompatibleCatalogEntries(): PiCatalogEntry[] {
+  const provider = hostCompatibleProvider();
+  if (!provider) return [];
+  const models = provider.getModels();
+  const modelIds = models.map((model) => model.id);
+  return models.map((model) => {
+    const thinkingLevels = getSupportedThinkingLevels(model) as ThinkingLevel[];
+    return {
+      provider: provider.id,
+      providerName: provider.name,
+      id: model.id,
+      label: catalogModelLabel(model.id, model.name, modelIds),
+      billing: HOST_COMPATIBLE_BILLING,
+      auth: "api-key" as const,
+      subscription: false,
+      reasoning: Boolean(model.reasoning),
+      thinkingLevels,
+      images: model.input.includes("image"),
+    };
+  });
 }
 
 let cachedCatalog: PiCatalogEntry[] | undefined;

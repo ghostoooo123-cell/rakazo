@@ -1,0 +1,37 @@
+# Last compose layer for a server that already pins the app image by digest.
+# Copy this file to the server's last compose file, beside the other compose files.
+# Do not build on that host: it has no source tree. From a checkout of this
+# change, on a machine with Docker BuildKit that can produce linux/amd64:
+#
+#   DOCKER_BUILDKIT=1 docker build --platform linux/amd64 \
+#     -f infra/compose/Dockerfile --build-arg GIT_SHA=<this commit> \
+#     -t rakazo-host-compat:local .
+#
+# `docker image inspect --format '{{.Id}}' rakazo-host-compat:local` prints the
+# image id. A local tag has no registry digest until the image is pushed or
+# loaded on the server. Replace the image line below with the loaded tag or
+# with name@sha256:<digest>. Changing RAKAZO_IMAGE or RAKAZO_IMAGE_TAG does not
+# override a pinned digest. This file sets the image and the server-model
+# variables on api and worker only. It does not change web, postgres, ports,
+# limits, or volumes. The key stays in .env and is not written here.
+services:
+  api:
+    image: rakazo-host-compat@sha256:REPLACE_AFTER_BUILD
+    environment:
+      RAKAZO_HOST_COMPAT_MODELS: ${RAKAZO_HOST_COMPAT_MODELS:?Set RAKAZO_HOST_COMPAT_MODELS in .env}
+      RAKAZO_HOST_COMPAT_URL: ${RAKAZO_HOST_COMPAT_URL:?Set RAKAZO_HOST_COMPAT_URL in .env}
+      RAKAZO_HOST_COMPAT_API_KEY: ${RAKAZO_HOST_COMPAT_API_KEY:?Set RAKAZO_HOST_COMPAT_API_KEY in .env}
+      RAKAZO_HOST_COMPAT_CONTEXT_WINDOW: ${RAKAZO_HOST_COMPAT_CONTEXT_WINDOW:-}
+      RAKAZO_HOST_COMPAT_MAX_TOKENS: ${RAKAZO_HOST_COMPAT_MAX_TOKENS:-}
+      RAKAZO_HOST_COMPAT_VISION_MODELS: ${RAKAZO_HOST_COMPAT_VISION_MODELS:-}
+      RAKAZO_HOST_COMPAT_REASONING_MODELS: ${RAKAZO_HOST_COMPAT_REASONING_MODELS:-}
+  worker:
+    image: rakazo-host-compat@sha256:REPLACE_AFTER_BUILD
+    environment:
+      RAKAZO_HOST_COMPAT_MODELS: ${RAKAZO_HOST_COMPAT_MODELS:?Set RAKAZO_HOST_COMPAT_MODELS in .env}
+      RAKAZO_HOST_COMPAT_URL: ${RAKAZO_HOST_COMPAT_URL:?Set RAKAZO_HOST_COMPAT_URL in .env}
+      RAKAZO_HOST_COMPAT_API_KEY: ${RAKAZO_HOST_COMPAT_API_KEY:?Set RAKAZO_HOST_COMPAT_API_KEY in .env}
+      RAKAZO_HOST_COMPAT_CONTEXT_WINDOW: ${RAKAZO_HOST_COMPAT_CONTEXT_WINDOW:-}
+      RAKAZO_HOST_COMPAT_MAX_TOKENS: ${RAKAZO_HOST_COMPAT_MAX_TOKENS:-}
+      RAKAZO_HOST_COMPAT_VISION_MODELS: ${RAKAZO_HOST_COMPAT_VISION_MODELS:-}
+      RAKAZO_HOST_COMPAT_REASONING_MODELS: ${RAKAZO_HOST_COMPAT_REASONING_MODELS:-}
