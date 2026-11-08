@@ -150,19 +150,21 @@ test("memory and skills are readable and editable in the app", async ({ page }, 
   const settings = page.getByTestId("bot-settings");
   await expect(settings.getByRole("button", { name: "Save", exact: true })).toHaveCount(0);
   const botMemory = settings.getByTestId("bot-knowledge-memory");
-  const botMemoryRow = botMemory.getByRole("button", { name: /MEMORY\.md/ });
+  await botMemory.getByTestId("bot-memory-manage").click();
+  const manager = page.getByTestId("bot-memory-manager");
+  const botMemoryRow = manager.getByRole("button", { name: /MEMORY\.md/ });
   await expect(botMemoryRow).toBeVisible();
   await botMemoryRow.click();
-  const botDocEditor = botMemory.locator("textarea");
+  const botDocEditor = manager.getByLabel("MEMORY.md");
   await expect(botDocEditor).toHaveValue(/# Chief/);
   const botMarker = `Bot memory e2e ${stamp}`;
   await botDocEditor.fill(`# Chief\n\n${botMarker}\n`);
-  await botMemory.getByRole("button", { name: "Save", exact: true }).scrollIntoViewIfNeeded();
+  await manager.getByRole("button", { name: "Save", exact: true }).scrollIntoViewIfNeeded();
   await captureScreenshot(page, testInfo, "80-knowledge-bot-memory");
   const botMemorySaved = page.waitForResponse(
     (response) => response.url().includes("/rpc/memory/update") && response.ok(),
   );
-  await botMemory.getByRole("button", { name: "Save", exact: true }).click();
+  await manager.getByRole("button", { name: "Save", exact: true }).click();
   await botMemorySaved;
   expect(
     await rpc<MemoryDocument[]>(page, "memory/list", {
@@ -172,7 +174,9 @@ test("memory and skills are readable and editable in the app", async ({ page }, 
   ).toContainEqual(expect.objectContaining({ content: `# Chief\n\n${botMarker}\n`, revision: 3 }));
   await botMemoryRow.click();
   await expect(botDocEditor).toHaveValue(new RegExp(botMarker));
-  await botMemory.getByRole("button", { name: "Cancel", exact: true }).click();
+  await manager.getByRole("button", { name: "Cancel", exact: true }).click();
+  await manager.getByLabel("Close memory").click();
+  await expect(manager).toHaveCount(0);
 
   // Skills belong to the person in this space, so they open from the account menu, not bot settings.
   await expect(settings.getByTestId("bot-knowledge-skills")).toHaveCount(0);
@@ -287,7 +291,7 @@ test("memory and skills are readable and editable in the app", async ({ page }, 
   );
 });
 
-test("a new bot hides its untouched memory index", async ({ page }, testInfo) => {
+test("a new bot always offers its own memory manager", async ({ page }, testInfo) => {
   await signup(page, `empty-memory-${Date.now()}@example.test`, "password12", "Sample");
   await completeOnboarding(page);
   const botId = await createNamedBot(page, "Researcher");
@@ -295,11 +299,7 @@ test("a new bot hides its untouched memory index", async ({ page }, testInfo) =>
   expect(docs).toEqual([
     expect.objectContaining({ path: "MEMORY.md", content: "# Researcher\n\n" }),
   ]);
-  const memoryLoaded = page.waitForResponse(
-    (response) => response.url().includes("/rpc/memory/list") && response.ok(),
-  );
   await openBotPanelTab(page, "Advanced");
-  await memoryLoaded;
   await page.evaluate(
     () =>
       new Promise<void>((resolve) =>
@@ -308,6 +308,23 @@ test("a new bot hides its untouched memory index", async ({ page }, testInfo) =>
   );
   const settings = page.getByTestId("bot-settings");
   await expect(settings.getByRole("button", { name: "Edit name" })).toHaveText("Researcher");
-  await expect(settings.getByTestId("bot-knowledge-memory")).toHaveCount(0);
-  await captureScreenshot(page, testInfo, "bot-settings-empty-memory");
+  const memory = settings.getByTestId("bot-knowledge-memory");
+  await expect(memory).toBeVisible();
+  await memory.getByTestId("bot-memory-manage").click();
+  const manager = page.getByTestId("bot-memory-manager");
+  await expect(manager).toBeVisible();
+  await expect(manager.getByLabel("Close memory")).toBeVisible();
+  const fact = `Researcher prefers written briefs ${Date.now()}`;
+  await manager.getByTestId("bot-memory-add-fact").fill(fact);
+  const saved = page.waitForResponse(
+    (response) => response.url().includes("/rpc/memory/update") && response.ok(),
+  );
+  await manager.getByRole("button", { name: "Add", exact: true }).click();
+  await saved;
+  expect(await rpc<MemoryDocument[]>(page, "memory/list", { botId, scope: "bot" })).toContainEqual(
+    expect.objectContaining({ content: expect.stringContaining(fact) }),
+  );
+  await captureScreenshot(page, testInfo, "bot-settings-memory-manager");
+  await manager.getByLabel("Close memory").click();
+  await expect(manager).toHaveCount(0);
 });

@@ -508,6 +508,7 @@ msgstr "動態"
 
 #: src/components/integrations/plugin-marketplace.tsx
 #: src/components/SecretAskCard.tsx
+#: src/pages/KnowledgeSection.tsx
 #: src/pages/McpServersOverlay.tsx
 #: src/pages/PluginsOverlay.tsx
 #: src/pages/ScratchpadSection.tsx
@@ -1483,6 +1484,10 @@ msgstr "關閉整合"
 #: src/pages/McpServersOverlay.tsx
 msgid "Close MCP servers"
 msgstr "關閉 MCP 伺服器"
+
+#: src/pages/KnowledgeSection.tsx
+msgid "Close memory"
+msgstr ""
 
 #: src/pages/MemorySettingsOverlay.tsx
 #: src/pages/SettingsOverlay.tsx
@@ -3870,6 +3875,7 @@ msgid "Main model"
 msgstr "主模型"
 
 #: src/pages/BillingSettingsPanel.tsx
+#: src/pages/KnowledgeSection.tsx
 #: src/pages/SettingsOverlay.tsx
 msgid "Manage"
 msgstr "管理"
@@ -4310,6 +4316,10 @@ msgstr ""
 
 #: src/components/VaultSettings.tsx
 msgid "New contact"
+msgstr ""
+
+#: src/pages/KnowledgeSection.tsx
+msgid "New fact"
 msgstr ""
 
 #: src/pages/GroupPanel.tsx

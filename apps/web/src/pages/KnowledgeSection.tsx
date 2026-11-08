@@ -1,12 +1,22 @@
 import { Trans, useLingui } from "@lingui/react/macro";
 import { ORPCError } from "@orpc/client";
 import type { AgentSkill, AgentSkillCatalogEntry, MemoryDocument } from "@rakazo/contracts";
-import { isDeletableMemoryDocument, isEmptyBotMemory } from "@rakazo/contracts";
+import { isDeletableMemoryDocument } from "@rakazo/contracts";
 import { fetchFresh, writeSaved } from "@rakazo/core/query";
-import { Badge, Button, SectionHeading, Skeleton, Textarea } from "@rakazo/ui-web";
+import {
+  Badge,
+  Button,
+  Dialog,
+  DialogClose,
+  DialogContent,
+  DialogTitle,
+  SectionHeading,
+  Skeleton,
+  Textarea,
+} from "@rakazo/ui-web";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@rakazo/ui-web/components/ui/tooltip";
 import { skipToken, useQuery, useQueryClient } from "@tanstack/react-query";
-import { Download, Plus } from "lucide-react";
+import { Download, Plus, XIcon } from "lucide-react";
 import { useEffect, useRef, useState } from "react";
 import {
   AvailabilityControl,
@@ -31,15 +41,61 @@ function rowClass(open: boolean): string {
 /**
  * Bot memory. Skills belong to the person in a space, not to one bot, so they live in
  * the Skills dialog; memory shared across bots lives in the Memory settings overlay.
+ * Every bot keeps a manage entry even before it has learned anything.
  */
 export function KnowledgeSection({ botId }: { botId: string }) {
+  const { t } = useLingui();
+  const [open, setOpen] = useState(false);
   return (
-    <MemoryDocumentList
-      key={botId}
-      input={{ botId, scope: "bot" }}
-      testId="bot-knowledge-memory"
-      compact
-    />
+    <section className="mt-6" data-testid="bot-knowledge-memory">
+      <div className="mb-2 flex items-center justify-between gap-2">
+        <SectionHeading variant="label" className="mb-0">
+          <Trans>Memory</Trans>
+        </SectionHeading>
+        <Button
+          variant="ghost"
+          size="sm"
+          type="button"
+          data-testid="bot-memory-manage"
+          onClick={() => setOpen(true)}
+        >
+          <Trans>Manage</Trans>
+        </Button>
+      </div>
+      <Dialog open={open} onOpenChange={setOpen}>
+        <DialogContent
+          showCloseButton={false}
+          className="flex max-h-[min(760px,calc(100%-2rem))] w-[560px] flex-col gap-0 overflow-hidden rounded-2xl p-0 sm:max-h-[min(760px,calc(100%-5rem))] sm:max-w-[calc(100%-5rem)]"
+          data-testid="bot-memory-manager"
+        >
+          <div className="flex items-start justify-between px-6 pt-6 sm:px-8 sm:pt-7">
+            <DialogTitle className="text-heading2 font-medium text-foreground">
+              <Trans>Memory</Trans>
+            </DialogTitle>
+            <DialogClose
+              aria-label={t`Close memory`}
+              render={
+                <Button
+                  variant="ghost"
+                  size="icon-sm"
+                  className="text-destructive hover:text-destructive"
+                />
+              }
+            >
+              <XIcon />
+            </DialogClose>
+          </div>
+          <div className="rk-scroll min-h-0 flex-1 overflow-y-auto overscroll-contain px-6 pb-6 pt-4 sm:px-8 sm:pb-8">
+            <MemoryDocumentList
+              key={botId}
+              input={{ botId, scope: "bot" }}
+              testId="bot-memory-manager-list"
+              alwaysShow
+            />
+          </div>
+        </DialogContent>
+      </Dialog>
+    </section>
   );
 }
 
@@ -67,10 +123,13 @@ function MemoryDocumentList({
   input,
   testId,
   compact = false,
+  alwaysShow = false,
 }: {
   input: { botId?: string; scope: "bot" | "user" };
   testId: string;
   compact?: boolean;
+  /** Bot memory manager always lists the seeded index, even before any facts. */
+  alwaysShow?: boolean;
 }) {
   const rpc = useSpaceRpc();
   const { t } = useLingui();
@@ -95,10 +154,6 @@ function MemoryDocumentList({
     : 0;
   const kb = Math.ceil(bytesLeftOut / 1024);
   const [showAll, setShowAll] = useState(false);
-  // Once shown, memory stays visible while the panel is open, even if emptied.
-  const [memoryShown, setMemoryShown] = useState(false);
-  const memoryVisible = memoryShown || docs.some((doc) => !isEmptyBotMemory(doc));
-  if (memoryVisible && !memoryShown) setMemoryShown(true);
   const [openId, setOpenId] = useState<string | null>(null);
   const [draft, setDraft] = useState("");
   const [loadedRevision, setLoadedRevision] = useState<number | undefined>();
@@ -107,6 +162,7 @@ function MemoryDocumentList({
   const [actionError, setError] = useState<string | null>(null);
   const error = actionError ?? (listQuery.isError ? t`Could not load` : null);
   const [confirmingDelete, setConfirmingDelete] = useState(false);
+  const [factDraft, setFactDraft] = useState("");
 
   async function setDocs(update: (current: MemoryDocument[]) => MemoryDocument[]) {
     await writeSaved(queryClient, list.queryKey, (current) => update(current ?? []));
@@ -196,15 +252,56 @@ function MemoryDocumentList({
     }
   }
 
-  if (compact && !memoryVisible && !error) return null;
+  async function addFact() {
+    const fact = factDraft.trim();
+    const doc = docs.find((entry) => !isDeletableMemoryDocument(entry.path)) ?? docs[0];
+    if (!fact || !doc || busy || conflicted) return;
+    setBusy(true);
+    setError(null);
+    try {
+      const next = doc.content.endsWith("\n")
+        ? `${doc.content}${fact}\n`
+        : `${doc.content}\n${fact}\n`;
+      const updated = await rpc.memory.update({
+        documentId: doc.id,
+        content: next,
+        expectedRevision: doc.revision,
+      });
+      await setDocs((current) =>
+        current.map((entry) => (entry.id === updated.id ? updated : entry)),
+      );
+      setFactDraft("");
+      if (openId === doc.id) {
+        setDraft(updated.content);
+        setLoadedRevision(updated.revision);
+      }
+    } catch (err) {
+      if (err instanceof ORPCError && err.code === "CONFLICT") {
+        setConflicted(true);
+        try {
+          await fetchFresh(queryClient, list);
+        } catch {
+          // Keep the draft and conflict state even if refreshing fails.
+        }
+      } else {
+        setError(t`Could not save`);
+      }
+    } finally {
+      setBusy(false);
+    }
+  }
+
   return (
-    <section className={compact ? "mt-6" : undefined}>
-      {compact ? (
+    <section className={compact && !alwaysShow ? "mt-6" : undefined}>
+      {compact && !alwaysShow ? (
         <SectionHeading variant="label" className="mb-2">
           <Trans>Memory</Trans>
         </SectionHeading>
       ) : null}
-      <div data-testid={testId} className={compact ? "rounded-xl bg-muted/50 p-4" : undefined}>
+      <div
+        data-testid={testId}
+        className={compact && !alwaysShow ? "rounded-xl bg-muted/50 p-4" : undefined}
+      >
         {error ? <div className="pb-2 text-[13px] text-destructive">{error}</div> : null}
         {kb > 0 ? (
           <p className="pb-2 text-[13px] text-muted-foreground" data-testid="memory-budget-note">
@@ -217,9 +314,33 @@ function MemoryDocumentList({
           </div>
         ) : null}
         {loading ? <Skeleton className="h-10 w-full" /> : null}
-        {!compact && !loading && docs.length === 0 && !error ? (
+        {!loading && docs.length === 0 && !error ? (
           <div className="py-1 text-[13px] text-muted-foreground">
             <Trans>Nothing remembered yet</Trans>
+          </div>
+        ) : null}
+        {alwaysShow && docs[0] ? (
+          <div className="mb-3 flex gap-2">
+            <Textarea
+              aria-label={t`New fact`}
+              disabled={busy || conflicted}
+              value={factDraft}
+              onChange={(event) => setFactDraft(event.target.value)}
+              rows={2}
+              className={fieldClass}
+              dir="auto"
+              data-testid="bot-memory-add-fact"
+            />
+            <Button
+              variant="secondary"
+              size="sm"
+              type="button"
+              className="self-end"
+              disabled={busy || conflicted || !factDraft.trim()}
+              onClick={() => void addFact()}
+            >
+              <Trans>Add</Trans>
+            </Button>
           </div>
         ) : null}
         <div>

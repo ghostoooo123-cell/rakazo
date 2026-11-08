@@ -507,6 +507,7 @@ msgstr "アクティビティ"
 
 #: src/components/integrations/plugin-marketplace.tsx
 #: src/components/SecretAskCard.tsx
+#: src/pages/KnowledgeSection.tsx
 #: src/pages/McpServersOverlay.tsx
 #: src/pages/PluginsOverlay.tsx
 #: src/pages/ScratchpadSection.tsx
@@ -1482,6 +1483,10 @@ msgstr "連携を閉じる"
 #: src/pages/McpServersOverlay.tsx
 msgid "Close MCP servers"
 msgstr "MCPサーバーを閉じる"
+
+#: src/pages/KnowledgeSection.tsx
+msgid "Close memory"
+msgstr ""
 
 #: src/pages/MemorySettingsOverlay.tsx
 #: src/pages/SettingsOverlay.tsx
@@ -3869,6 +3874,7 @@ msgid "Main model"
 msgstr "メインモデル"
 
 #: src/pages/BillingSettingsPanel.tsx
+#: src/pages/KnowledgeSection.tsx
 #: src/pages/SettingsOverlay.tsx
 msgid "Manage"
 msgstr "管理"
@@ -4309,6 +4315,10 @@ msgstr ""
 
 #: src/components/VaultSettings.tsx
 msgid "New contact"
+msgstr ""
+
+#: src/pages/KnowledgeSection.tsx
+msgid "New fact"
 msgstr ""
 
 #: src/pages/GroupPanel.tsx
