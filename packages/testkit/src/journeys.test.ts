@@ -603,6 +603,132 @@ describeJourneys("required product journeys", () => {
     ).toMatchObject({ content: "legacy", revision: doc.revision + 3 });
   });
 
+  it("keeps durable memory isolated per bot across turns, edits, and accounts", async () => {
+    // Relative imports: testkit does not always resolve workspace package names inside
+    // the production image the way apps/api does (see agent-import.postgres.test.ts).
+    const { loadAgentMemoryContext } = await import("../../adapters/src/memory-context.ts");
+    const { MarkdownMemoryStore } = await import("../../memory/src/index.ts");
+    const ada = await signup(app, `bot-memory-${stamp}@rakazo.test`, "Memory Ada");
+    const bob = await signup(app, `bot-memory-bob-${stamp}@rakazo.test`, "Memory Bob");
+    await runWithoutAsking(ada);
+    const botA = await rpc<Bot>(app, ada, "bots/create", {
+      name: "Alpha",
+      title: "Alpha",
+      description: "",
+      instructions: "",
+      notifyOnFinish: true,
+    });
+    const botB = await rpc<Bot>(app, ada, "bots/create", {
+      name: "Beta",
+      title: "Beta",
+      description: "",
+      instructions: "",
+      notifyOnFinish: true,
+    });
+    const fact = "Alpha's coffee order is oat latte.";
+    await sendAndWait(app, ada, botA.id, `remember that ${fact}`);
+    const alphaDocs = await rpc<Array<{ id: string; content: string; revision: number }>>(
+      app,
+      ada,
+      "memory/list",
+      { botId: botA.id, scope: "bot" },
+    );
+    expect(alphaDocs.some((doc) => doc.content.includes(fact))).toBe(true);
+    const betaDocs = await rpc<Array<{ content: string }>>(app, ada, "memory/list", {
+      botId: botB.id,
+      scope: "bot",
+    });
+    expect(betaDocs.some((doc) => doc.content.includes(fact))).toBe(false);
+
+    const adaActor = await rpc<{ userId: string; spaceId: string }>(app, ada, "me");
+    const ctx = {
+      operationId: "mem-iso",
+      traceId: "mem-iso",
+      spaceId: adaActor.spaceId,
+      userId: adaActor.userId,
+      signal: new AbortController().signal,
+    };
+    // Owner/system client: appPrisma without runAsTenant is blocked by RLS and yields
+    // empty reads (see pin-test-env / agent-import.postgres.test.ts).
+    const store = new MarkdownMemoryStore(prisma);
+    const alphaPrompt = await loadAgentMemoryContext(store, botA.id, { ...ctx, botId: botA.id });
+    const betaPrompt = await loadAgentMemoryContext(store, botB.id, { ...ctx, botId: botB.id });
+    expect(alphaPrompt).toContain(fact);
+    expect(betaPrompt ?? "").not.toContain(fact);
+
+    const updated = "Alpha's coffee order is black tea.";
+    const alphaDoc = alphaDocs.find((doc) => doc.content.includes(fact))!;
+    await rpc(app, ada, "memory/update", {
+      documentId: alphaDoc.id,
+      content: `# Alpha\n\n${updated}\n`,
+      expectedRevision: alphaDoc.revision,
+    });
+    const afterUpdate = await loadAgentMemoryContext(store, botA.id, { ...ctx, botId: botA.id });
+    expect(afterUpdate).toContain(updated);
+    expect(afterUpdate).not.toContain(fact);
+
+    await rpc(app, ada, "memory/update", {
+      documentId: alphaDoc.id,
+      content: "# Alpha\n\n",
+    });
+    const afterDelete = await loadAgentMemoryContext(store, botA.id, { ...ctx, botId: botA.id });
+    expect(afterDelete ?? "").not.toContain(updated);
+    expect(afterDelete ?? "").not.toContain(fact);
+
+    await rpc(app, ada, "memory/update", {
+      documentId: alphaDoc.id,
+      content: `# Alpha\n\n${updated}\n`,
+    });
+    const reloaded = new MarkdownMemoryStore(prisma);
+    const afterReload = await loadAgentMemoryContext(reloaded, botA.id, {
+      ...ctx,
+      botId: botA.id,
+    });
+    expect(afterReload).toContain(updated);
+
+    await prisma.bot.update({
+      where: { id: botA.id },
+      data: { modelProvider: "openrouter", modelId: "openai/gpt-4o-mini" },
+    });
+    await rpc(app, ada, "bots/update", {
+      botId: botA.id,
+      modelProvider: null,
+      modelId: null,
+    });
+    expect(await prisma.bot.findUniqueOrThrow({ where: { id: botA.id } })).toMatchObject({
+      modelProvider: null,
+      modelId: null,
+    });
+    const afterModel = await loadAgentMemoryContext(reloaded, botA.id, {
+      ...ctx,
+      botId: botA.id,
+    });
+    expect(afterModel).toContain(updated);
+
+    const denied = await app.request("/rpc/memory/list", {
+      method: "POST",
+      headers: { "Content-Type": "application/json", Cookie: bob },
+      body: JSON.stringify({ json: { botId: botA.id, scope: "bot" } }),
+    });
+    expect(denied.status).toBeGreaterThanOrEqual(400);
+    const steal = await app.request("/rpc/memory/update", {
+      method: "POST",
+      headers: { "Content-Type": "application/json", Cookie: bob },
+      body: JSON.stringify({
+        json: { documentId: alphaDoc.id, content: "# Stolen\n\nnot yours\n" },
+      }),
+    });
+    expect(steal.status).toBeGreaterThanOrEqual(400);
+    expect(
+      (
+        await rpc<Array<{ content: string }>>(app, ada, "memory/list", {
+          botId: botA.id,
+          scope: "bot",
+        })
+      ).some((doc) => doc.content.includes(updated)),
+    ).toBe(true);
+  });
+
   it("clears a conversation without removing the bot, computer, memory, or routines", async () => {
     const cookie = await signup(app, `clear-j-${stamp}@rakazo.test`, "Clear Journey");
     const bot = await rpc<Bot>(app, cookie, "bots/create", {

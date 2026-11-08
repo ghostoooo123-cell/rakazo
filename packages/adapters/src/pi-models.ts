@@ -7,7 +7,9 @@ import {
   canonicalPiProviderId,
   MODEL_KEY_REJECTED_ERROR,
 } from "@rakazo/contracts";
-import { LOCAL_PROVIDER_ID, registerLocalProvider } from "./pi-local-provider.js";
+import { HOST_COMPATIBLE_BILLING, hostCompatibleProvider } from "./pi-host-compatible.js";
+import { hostCompatibleModelLabelEntries } from "./pi-host-compatible-id.js";
+import { LOCAL_PROVIDER_ID, localModelLabelEntries, registerLocalProvider } from "./pi-local-provider.js";
 import { applyPiModelCompatibility } from "./pi-model-compat.js";
 import { loadProviderOAuth, SUBSCRIPTION_SIGN_IN_PROVIDERS } from "./pi-oauth.js";
 import {
@@ -102,7 +104,7 @@ export function offeredCatalog<T extends { provider: string; id: string }>(
 
 /** A bundled model priced in the registry, or a live id judged by its id alone. */
 export function hiddenCatalogModel(entry: { provider: string; id: string }): boolean {
-  listPiCatalog();
+  ensureVendorCatalog();
   const key = `${canonicalPiProviderId(entry.provider)}:${entry.id}`;
   return hiddenCatalogKeys.has(key) || !catalogModelServesAgents(entry);
 }
@@ -116,13 +118,13 @@ const trimBaseUrl = (url: string) => url.trim().replace(/\/+$/, "");
 
 /** Whether `url` is one the model registry itself uses for this catalog provider. */
 export function isCatalogProviderBaseUrl(provider: string, url: string): boolean {
-  listPiCatalog();
+  ensureVendorCatalog();
   return catalogBaseUrls.get(canonicalPiProviderId(provider))?.has(trimBaseUrl(url)) ?? false;
 }
 
 /** Pinned models-list URL for a catalog provider, taken from the model registry. */
 export function catalogProviderProbeBaseUrl(provider: string): string | null {
-  listPiCatalog();
+  ensureVendorCatalog();
   return catalogProbeBaseUrls.get(canonicalPiProviderId(provider)) ?? null;
 }
 
@@ -251,9 +253,40 @@ function pinnedCatalogProbeBaseUrl(
   return [...urls][0] ?? null;
 }
 
-export function listPiCatalog(): PiCatalogEntry[] {
+function ensureVendorCatalog(): PiCatalogEntry[] {
   cachedCatalog ??= buildPiCatalog();
   return cachedCatalog;
+}
+
+export function listPiCatalog(): PiCatalogEntry[] {
+  return [...ensureVendorCatalog(), ...hostCompatibleCatalogEntries()];
+}
+
+/** Operator endpoint entries. Kept out of the cached vendor catalog so an empty setting adds nothing. */
+function hostCompatibleCatalogEntries(): PiCatalogEntry[] {
+  const provider = hostCompatibleProvider();
+  if (!provider) return [];
+  const models = provider.getModels();
+  const modelIds = models.map((model) => model.id);
+  const labels = hostCompatibleModelLabelEntries();
+  return models.map((model) => {
+    const thinkingLevels = getSupportedThinkingLevels(model) as ThinkingLevel[];
+    const detail = labels.get(model.id)?.detail;
+    return {
+      provider: provider.id,
+      // No "Host" suffix on selected rows; the menu label is enough.
+      providerName: "",
+      id: model.id,
+      label: catalogModelLabel(model.id, model.name, modelIds),
+      billing: detail ? `${HOST_COMPATIBLE_BILLING} (${detail})` : HOST_COMPATIBLE_BILLING,
+      auth: "api-key" as const,
+      subscription: false,
+      reasoning: Boolean(model.reasoning),
+      thinkingLevels,
+      images: model.input.includes("image"),
+      ...(detail ? { authHint: detail } : {}),
+    };
+  });
 }
 
 let cachedCatalog: PiCatalogEntry[] | undefined;
@@ -295,20 +328,25 @@ function buildPiCatalog(): PiCatalogEntry[] {
       ),
     );
     const modelIds = providerModels.map((model) => model.id);
+    const localLabels = provider.id === LOCAL_PROVIDER_ID ? localModelLabelEntries() : null;
     for (const model of providerModels) {
       if (!catalogModelServesAgents(model)) hiddenCatalogKeys.add(`${provider.id}:${model.id}`);
       const thinkingLevels = getSupportedThinkingLevels(model) as ThinkingLevel[];
+      const detail = localLabels?.get(model.id)?.detail;
+      const rowBilling = detail ? `${billing} (${detail})` : billing;
       entries.push({
         provider: provider.id,
-        providerName,
+        // Operator-managed local rows show the menu alias alone (no "Local …" subtitle).
+        providerName: provider.id === LOCAL_PROVIDER_ID ? "" : providerName,
         id: model.id,
         recommended: isRecommendedCatalogModel(provider.id, model.id),
         label: catalogModelLabel(model.id, model.name, modelIds),
-        billing,
+        billing: rowBilling,
         auth,
         oauthLabel,
         authHint:
-          provider.id === OPENAI_COMPATIBLE_PROVIDER_ID ? "Custom server" : signInMeta?.hint,
+          detail ??
+          (provider.id === OPENAI_COMPATIBLE_PROVIDER_ID ? "Custom server" : signInMeta?.hint),
         subscription,
         signIn: signInMeta?.mode,
         reasoning: Boolean(model.reasoning),

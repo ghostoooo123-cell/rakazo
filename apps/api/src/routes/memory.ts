@@ -22,6 +22,8 @@ export function memoryRoutes(ctx: RouterContext) {
   return {
     memory: {
       list: authed.memory.list.handler(async ({ context, input }) => {
+        // A bot id must name a bot this member can open; never list by id alone.
+        if (input.botId) await repos.getBot(context.actor, input.botId);
         const docs = await deps.prisma.memoryDocument.findMany({
           where: {
             spaceId: context.actor.spaceId,
@@ -127,6 +129,7 @@ export function memoryRoutes(ctx: RouterContext) {
         return { ok: true as const };
       }),
       exportMarkdown: authed.memory.exportMarkdown.handler(async ({ context, input }) => {
+        if (input.botId) await repos.getBot(context.actor, input.botId);
         const docs = await deps.prisma.memoryDocument.findMany({
           where: {
             spaceId: context.actor.spaceId,

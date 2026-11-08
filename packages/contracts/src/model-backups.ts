@@ -88,7 +88,10 @@ export function connectedBackupOptions(
   for (const [provider, models] of entries) {
     const owners = connections.get(provider) ?? [];
     const option = (entry: ModelCatalogEntry, connection?: ModelCredential) => {
-      const providerName = entry.providerName ?? entry.provider;
+      // Managed rows keep the catalog alias alone; no Host / vendor subtitle.
+      const providerName = entry.managed
+        ? (entry.providerName ?? "")
+        : (entry.providerName ?? entry.provider);
       return {
         provider: entry.provider,
         modelId: entry.id,

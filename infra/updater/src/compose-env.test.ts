@@ -256,6 +256,34 @@ describe("api and worker environment allowlists", () => {
   );
 
   it.each(STACKS.map((files) => [files.join(" + "), files] as const))(
+    "%s gives the server model key to api and worker only",
+    (_name, files) => {
+      expect(stackEnvironment(files, "api")).toHaveProperty("RAKAZO_HOST_COMPAT_API_KEY");
+      expect(stackEnvironment(files, "worker")).toHaveProperty("RAKAZO_HOST_COMPAT_API_KEY");
+      expect(stackEnvironment(files, "web")).not.toHaveProperty("RAKAZO_HOST_COMPAT_API_KEY");
+      expect(stackEnvironment(files, "web")).not.toHaveProperty("RAKAZO_HOST_COMPAT_URL");
+      expect(stackEnvironment(files, "web")).not.toHaveProperty("RAKAZO_HOST_COMPAT_MODELS");
+    },
+  );
+
+  it("keeps the optional server-model image overlay out of the allowlist stacks", () => {
+    const file = "docker-compose.host-compat.example.yml";
+    expect(STACKS.some((stack) => stack.includes(file))).toBe(false);
+    const text = readFileSync(path.join(composeDir, file), "utf8");
+    expect(text).not.toContain("XAI_API_KEY");
+    expect(text).not.toContain("onehop");
+    const doc = parse(text) as {
+      services: Record<string, { image?: string; environment?: Record<string, unknown> }>;
+    };
+    expect(Object.keys(doc.services).sort()).toEqual(["api", "worker"]);
+    for (const name of ["api", "worker"] as const) {
+      expect(doc.services[name]?.image).toContain("REPLACE_AFTER_BUILD");
+      expect(doc.services[name]?.environment).toHaveProperty("RAKAZO_HOST_COMPAT_API_KEY");
+      expect(doc.services[name]?.environment).not.toHaveProperty("XAI_API_KEY");
+    }
+  });
+
+  it.each(STACKS.map((files) => [files.join(" + "), files] as const))(
     "%s never unsets a value the app image bakes in",
     (_name, files) => {
       // A key with no value is removed from the container when unset, image ENV included.

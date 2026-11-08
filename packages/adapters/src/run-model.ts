@@ -34,7 +34,12 @@ import { compatibleModelSeesImages } from "./model-vision.js";
 import { assertAllowedOpenAiCompatibleUrl } from "./openai-compatible-url.js";
 import { codexLiveModel } from "./pi-codex-catalog.js";
 import { toOAuthCredential } from "./pi-credentials.js";
-import { LOCAL_PROVIDER_ID } from "./pi-local-provider.js";
+import {
+  configuredHostCompatibleModel,
+  hostCompatibleRunMaterial,
+  isHostCompatibleProvider,
+} from "./pi-host-compatible.js";
+import { configuredLocalModel, LOCAL_PROVIDER_ID } from "./pi-local-provider-id.js";
 import type { StoredModelSecret } from "./pi-oauth.js";
 import {
   CHATGPT_OAUTH_PROVIDER,
@@ -181,7 +186,9 @@ export async function resolveModelKey(...args: Parameters<typeof resolveModelKey
     throw new UnavailableModelForAuthError(MISSING_MODEL_RUN_ERROR);
   }
   const callObserver =
-    !credential && billingEnabled ? await hostedModelCreditObserver(deps.prisma, scope) : undefined;
+    !credential && billingEnabled && !isHostCompatibleProvider(provider)
+      ? await hostedModelCreditObserver(deps.prisma, scope)
+      : undefined;
   return { ...material, apiKey: material.apiKey ?? runtimeKey, callObserver };
 }
 
@@ -226,6 +233,11 @@ async function resolveModelKeyMaterial(
   ownCredential?: true;
   redact: string[];
 }> {
+  if (isHostCompatibleProvider(provider)) {
+    const material = hostCompatibleRunMaterial(modelId);
+    if (!material) throw new UnavailableModelForAuthError("Unknown model for that provider");
+    return material;
+  }
   if (credential) {
     return withModelCredentialLock(credential.secretId, async () => {
       const row = await deps.prisma.secret.findFirst({
@@ -439,7 +451,14 @@ export async function resolveConnectedModelKey(
     modelId,
     { credentialId },
   );
-  if (!credential && provider !== hostedProvider) throw new Error(PINNED_PROVIDER_NOT_CONNECTED);
+  if (
+    !credential &&
+    provider !== hostedProvider &&
+    !configuredHostCompatibleModel(provider, modelId) &&
+    !configuredLocalModel(provider, modelId)
+  ) {
+    throw new Error(PINNED_PROVIDER_NOT_CONNECTED);
+  }
   const resolved = await resolveModelKey(
     deps,
     scope.userId,

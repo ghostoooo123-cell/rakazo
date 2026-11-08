@@ -162,16 +162,25 @@ export function ModelRoleSettings({
     state.catalog,
     credentials,
     role === "computer",
-  ).map((choice) => ({
-    ...(entryFor(choice) ?? {
-      provider: choice.provider,
-      id: choice.modelId,
-      label: choice.label,
-      billing: "",
-    }),
-    providerName: choice.credentialId ? choice.connectionName : providerLabel(choice.provider),
-    ...(choice.credentialId ? { credentialId: choice.credentialId } : {}),
-  }));
+  ).map((choice) => {
+    const entry = entryFor(choice);
+    // Managed rows show the catalog alias alone — no "Host" / vendor subtitle.
+    const name = choice.credentialId
+      ? choice.connectionName
+      : entry?.managed
+        ? (entry.providerName ?? "")
+        : providerLabel(choice.provider);
+    return {
+      ...(entry ?? {
+        provider: choice.provider,
+        id: choice.modelId,
+        label: choice.label,
+        billing: "",
+      }),
+      providerName: name,
+      ...(choice.credentialId ? { credentialId: choice.credentialId } : {}),
+    };
+  });
   // A pinned row runs on its connection; others on the provider's newest.
   const connectionFor = (choice: ModelRoleChoice) =>
     choice.credentialId
@@ -180,10 +189,17 @@ export function ModelRoleSettings({
           (entry) =>
             canonicalPiProviderId(entry.provider) === canonicalPiProviderId(choice.provider),
         );
-  const providerName = (choice: ModelRoleChoice) =>
-    (choice.credentialId &&
-      options.find((option) => option.credentialId === choice.credentialId)?.providerName) ||
-    providerLabel(choice.provider);
+  const providerName = (choice: ModelRoleChoice) => {
+    if (choice.credentialId) {
+      return (
+        options.find((option) => option.credentialId === choice.credentialId)?.providerName ||
+        providerLabel(choice.provider)
+      );
+    }
+    const entry = entryFor(choice);
+    if (entry?.managed) return entry.providerName ?? "";
+    return providerLabel(choice.provider);
+  };
   // What runs when the member chose no first model; named in the empty row and offered to
   // return to from the picker.
   const deployment = settings?.deploymentPrimary ?? null;

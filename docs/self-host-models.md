@@ -67,11 +67,19 @@ RAKAZO_LOCAL_MODELS=qwen3:4b,llama3.1:8b,qwen3-vl
 RAKAZO_LOCAL_MODELS_URL=http://127.0.0.1:11434/v1
 RAKAZO_LOCAL_CONTEXT_WINDOW=32768
 RAKAZO_LOCAL_MAX_TOKENS=4096
+# Optional: catalog display names. API ids stay on the left; menus show the label.
+# Detail after `|` is identification text only (not a third menu choice).
+# RAKAZO_LOCAL_MODEL_LABELS=Qwen3.8-Flash-Next=千问|A100_千问3.8
 # Optional: model ids on this endpoint that accept images (screenshot computer tools).
 RAKAZO_LOCAL_VISION_MODELS=qwen3-vl
 # Optional: model ids on this endpoint that accept OpenAI-style reasoning_effort.
 RAKAZO_LOCAL_REASONING_MODELS=qwen3:4b
 ```
+
+Local models are listed for every signed-in account on this server. Members do not enter a URL or
+key; the API and worker keep `RAKAZO_LOCAL_MODELS_URL` server-side. Optional
+`RAKAZO_LOCAL_MODEL_LABELS` sets menu text (`api-id=Menu` or `api-id=Menu|Detail`) without
+changing the id sent to the model server or rewriting existing bot choices.
 
 A model in `RAKAZO_LOCAL_REASONING_MODELS` offers thinking levels and sends the chosen level as
 `reasoning_effort` (`medium` by default, `none` when thinking is off). Other local models never
@@ -91,6 +99,37 @@ bots run, or firewall / block that path. Linux does not get `host.docker.interna
 way by default.
 Only configure an endpoint you control: prompts, attachments, and tool results sent to that model
 leave Rakazo through this URL. Leave `RAKAZO_LOCAL_MODELS` blank to disable the provider.
+
+## A second server model
+
+Local models share one address. To offer one extra model on a different OpenAI-compatible address,
+set all three on the API and worker:
+
+```env
+RAKAZO_HOST_COMPAT_MODELS=your-model-id
+# Optional: same Menu|Detail form as local labels. Example: openai/gpt-6.1-terra=GPT
+# RAKAZO_HOST_COMPAT_MODEL_LABELS=your-model-id=GPT
+RAKAZO_HOST_COMPAT_URL=https://models.example/v1
+RAKAZO_HOST_COMPAT_API_KEY=replace-with-the-server-key
+# Optional: Settings → Models shows only local + this host-compatible row (no Connect vendors).
+# RAKAZO_OPERATOR_MODELS_ONLY=1
+```
+
+The model is listed for every account on this server. It does not change `PI_DEFAULT_MODEL`,
+rewrite existing bot choices, or replace a person's own connections. It is text only unless the
+same id is also listed in `RAKAZO_HOST_COMPAT_VISION_MODELS`. Optional
+`RAKAZO_HOST_COMPAT_CONTEXT_WINDOW` and `RAKAZO_HOST_COMPAT_MAX_TOKENS` default to 32768 and 4096.
+`RAKAZO_HOST_COMPAT_REASONING_MODELS` lists ids that accept `reasoning_effort`. Leave the three
+required values empty and the extra model stays off. `RAKAZO_OPENAI_COMPAT_ALLOW_PUBLIC=0` also
+turns it off. The address must be https, public, and different from `RAKAZO_LOCAL_MODELS_URL`.
+When `RAKAZO_OPERATOR_MODELS_ONLY=1`, pickers and selected rows show only the operator labels
+(for example GPT and 千问), without wire ids or a Host subtitle.
+
+The web container does not receive the key. A stack that pins the app image by digest needs a last
+compose file that points only `api` and `worker` at an image built with this change; changing
+`RAKAZO_IMAGE` does not replace a hardcoded digest. Copy
+`infra/compose/docker-compose.host-compat.example.yml` and fill in the image digest after the
+build.
 
 ## Ollama Cloud
 

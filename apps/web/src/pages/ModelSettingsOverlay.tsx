@@ -113,7 +113,12 @@ export function ModelSettingsOverlay({
     (entry) => entry.id,
     (entry) => entry.name,
   );
-  const providers = allProviders.filter((entry) =>
+  // Server-managed catalog rows are already available; they are not Connect targets.
+  const personalProviders = allProviders.filter((entry) => {
+    const rows = catalog.filter((item) => item.provider === entry.id);
+    return rows.length === 0 || rows.some((item) => !item.managed);
+  });
+  const providers = personalProviders.filter((entry) =>
     entry.baseUrl
       ? !isOllamaCloudBaseUrl(credentialByProvider.get(OPENAI_COMPATIBLE_PROVIDER_ID)?.baseUrl)
       : !credentialByProvider.has(entry.id),
@@ -344,10 +349,11 @@ export function ModelSettingsOverlay({
             }
             panel={connectionAt === "computer" ? panelFor(true) : null}
           />
-          {scope === "space" ? null : (
+          {scope === "space" ||
+          (personalProviders.length === 0 && credentials.length === 0) ? null : (
             <ProvidersSection
               credentials={credentials}
-              providers={allProviders}
+              providers={personalProviders}
               name={connectionName}
               disabled={busy}
               onAdd={(next) => openConnection(next, null, null, "providers:add")}

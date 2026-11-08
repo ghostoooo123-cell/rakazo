@@ -3,6 +3,7 @@ import type {
   Model,
   Models,
   ModelThinkingLevel,
+  MutableModels,
   ThinkingLevelMap,
 } from "@earendil-works/pi-ai";
 import { clampThinkingLevel } from "@earendil-works/pi-ai";
@@ -11,6 +12,7 @@ import type { AgentRunRequest } from "@rakazo/adapter-kit";
 import { canonicalPiProviderId, usableModelId } from "@rakazo/contracts";
 import { DEFAULT_OPENROUTER_MODEL_ID } from "./deployment-model.js";
 import { PiRuntimeCredentialStore, toOAuthCredential } from "./pi-credentials.js";
+import { registerHostCompatibleProvider } from "./pi-host-compatible.js";
 import { liveModelSibling, withLiveImageInput } from "./pi-live-model.js";
 import { registerLocalProvider } from "./pi-local-provider.js";
 import { applyPiModelCompatibility } from "./pi-model-compat.js";
@@ -29,12 +31,12 @@ import {
 // Built on first use, not at module load: entry points call loadRootEnv() after
 // their imports, and ESM hoists those imports, so module-level env reads here
 // would run before .env is loaded and miss the local provider entirely.
-let catalogModelsCache: Models | undefined;
+let catalogModelsCache: MutableModels | undefined;
 function catalogModels(): Models {
   catalogModelsCache ??= registerOpenAiCompatibleCatalog(
     registerLocalProvider(applyPiModelCompatibility(builtinModels())),
   );
-  return catalogModelsCache;
+  return registerHostCompatibleProvider(catalogModelsCache);
 }
 
 // Reasoning-capable models must not start at "off": for OpenRouter, pi-ai maps

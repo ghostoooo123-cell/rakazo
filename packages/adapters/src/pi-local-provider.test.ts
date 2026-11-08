@@ -1,15 +1,28 @@
 import { builtinModels } from "@earendil-works/pi-ai/providers/all";
-import { afterEach, describe, expect, it } from "vitest";
+import { connectedModelChoices, resolveSelectableModelId } from "@rakazo/core";
+import type { PrismaClient } from "@rakazo/db";
+import { afterEach, describe, expect, it, vi } from "vitest";
 import {
+  PINNED_PROVIDER_NOT_CONNECTED,
+  pinnedModelCredentialError,
+  validateBotModelChange,
+} from "./model-selection.js";
+import {
+  configuredLocalModel,
+  LOCAL_MODEL_LABELS_ENV,
   LOCAL_PROVIDER_ID,
   localBaseUrl,
+  localModelLabelEntries,
+  localModelLabels,
   localProvider,
   registerLocalProvider,
 } from "./pi-local-provider.js";
+import { catalogModelLabel } from "./pi-models.js";
 
 const ENV_KEYS = [
   "RAKAZO_LOCAL_MODELS",
   "RAKAZO_LOCAL_MODELS_URL",
+  LOCAL_MODEL_LABELS_ENV,
   "RAKAZO_LOCAL_CONTEXT_WINDOW",
   "RAKAZO_LOCAL_MAX_TOKENS",
   "RAKAZO_LOCAL_REASONING_MODELS",
@@ -48,6 +61,21 @@ describe("local model provider", () => {
     const provider = localProvider();
     expect(provider?.id).toBe(LOCAL_PROVIDER_ID);
     expect(provider?.getModels().map((model) => model.id)).toEqual(["qwen3:4b", "llama3.1:8b"]);
+  });
+
+  it("keeps the API id while menus can show an operator label", () => {
+    const id = "Qwen3.8-Flash-Next";
+    const label = "千问";
+    const detail = "A100_千问3.8";
+    setModels(id);
+    process.env[LOCAL_MODEL_LABELS_ENV] = `${id}=${label}|${detail},unknown=skip,=bad`;
+    expect(localModelLabels().get(id)).toBe(label);
+    expect(localModelLabelEntries().get(id)).toEqual({ label, detail });
+    expect(configuredLocalModel(LOCAL_PROVIDER_ID, id)).toBe(true);
+    expect(configuredLocalModel(LOCAL_PROVIDER_ID, "other")).toBe(false);
+    const model = localProvider()?.getModels()[0];
+    expect(model).toMatchObject({ id, name: label, baseUrl: localBaseUrl() });
+    expect(catalogModelLabel(model!.id, model!.name)).toBe(label);
   });
 
   it("bills nothing, because the model runs on the operator's own hardware", () => {
@@ -138,5 +166,74 @@ describe("local model provider", () => {
     setModels("qwen3:4b");
     const withLocal = registerLocalProvider(builtinModels());
     expect(withLocal.getModel(LOCAL_PROVIDER_ID, "qwen3:4b")).toBeDefined();
+  });
+});
+
+describe("server-managed local model menu", () => {
+  const id = "Qwen3.8-Flash-Next";
+  const label = "千问";
+  const lan = "http://192.168.0.186:8083/v1";
+
+  it("lists the alias for every account and pins by API id without a personal key", async () => {
+    setModels(id);
+    process.env[LOCAL_MODEL_LABELS_ENV] = `${id}=${label}|A100_千问3.8`;
+    process.env.RAKAZO_LOCAL_MODELS_URL = lan;
+    const catalog = [
+      {
+        provider: LOCAL_PROVIDER_ID,
+        providerName: "",
+        id,
+        label,
+        managed: true,
+      },
+    ];
+    const choices = connectedModelChoices([], catalog);
+    expect(choices).toEqual([
+      expect.objectContaining({
+        provider: LOCAL_PROVIDER_ID,
+        modelId: id,
+        label,
+        modelLabel: label,
+      }),
+    ]);
+    expect(choices[0]).not.toHaveProperty("providerLabel");
+    expect(JSON.stringify(choices)).not.toContain(lan);
+    expect(JSON.stringify(choices)).not.toContain("A100_千问3.8");
+    expect(resolveSelectableModelId(catalog, LOCAL_PROVIDER_ID, id)).toBe(id);
+    expect(resolveSelectableModelId(catalog, LOCAL_PROVIDER_ID, label)).toBe(id);
+    expect(
+      pinnedModelCredentialError(
+        { modelProvider: LOCAL_PROVIDER_ID, modelId: id, thinkingLevel: null },
+        null,
+      ),
+    ).toBeUndefined();
+    expect(
+      pinnedModelCredentialError(
+        { modelProvider: "openrouter", modelId: "x", thinkingLevel: null },
+        null,
+      ),
+    ).toBe(PINNED_PROVIDER_NOT_CONNECTED);
+
+    const prisma = {
+      userModelCredential: { findMany: vi.fn(async () => []) },
+    } as unknown as PrismaClient;
+    await expect(
+      validateBotModelChange(
+        {
+          prisma,
+          secretStore: { load: vi.fn() },
+          hostedProvider: undefined,
+          refreshExpiredCredential: vi.fn(),
+          defaultModel: async () => ({ provider: LOCAL_PROVIDER_ID, model: id }),
+        },
+        {
+          userId: "user-1",
+          spaceId: "space-1",
+          provider: LOCAL_PROVIDER_ID,
+          model: id,
+          current: { provider: null, model: null },
+        },
+      ),
+    ).resolves.toMatchObject({ ok: true, provider: LOCAL_PROVIDER_ID, model: id });
   });
 });

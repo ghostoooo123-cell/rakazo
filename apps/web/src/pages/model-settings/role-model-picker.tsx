@@ -177,7 +177,7 @@ export function RoleModelPicker({
               </CommandGroup>
             ) : null}
             {groups.map(([name, entries]) => (
-              <CommandGroup key={name} heading={name}>
+              <CommandGroup key={name || "models"} heading={name || undefined}>
                 {entries.map((option) => (
                   <CommandItem
                     key={optionValue(option)}

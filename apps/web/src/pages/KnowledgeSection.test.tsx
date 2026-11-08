@@ -43,11 +43,21 @@ vi.mock("@lingui/react/macro", () => {
   return { useLingui: () => ({ t }), Trans: ({ children }: { children: ReactNode }) => children };
 });
 vi.mock("@rakazo/ui-web", () => {
-  const Container = ({ children }: { children?: ReactNode }) => <div>{children}</div>;
+  const Container = ({
+    children,
+    ...props
+  }: { children?: ReactNode } & Record<string, unknown>) => <div {...props}>{children}</div>;
   return {
-    Button: ({ variant: _variant, ...props }: ComponentProps<"button"> & { variant?: string }) => (
-      <button {...props} />
-    ),
+    Button: ({
+      variant: _variant,
+      size: _size,
+      render,
+      ...props
+    }: ComponentProps<"button"> & {
+      variant?: string;
+      size?: string;
+      render?: ReactNode;
+    }) => <button {...props} />,
     SectionHeading: ({
       variant: _variant,
       ...props
@@ -59,6 +69,27 @@ vi.mock("@rakazo/ui-web", () => {
     TabsTrigger: Container,
     TabsContent: Container,
     Badge: ({ children }: { children?: ReactNode }) => <span>{children}</span>,
+    Dialog: ({
+      open = true,
+      children,
+    }: {
+      open?: boolean;
+      children?: ReactNode;
+      onOpenChange?: (open: boolean) => void;
+    }) => (open ? <div>{children}</div> : null),
+    DialogContent: ({
+      children,
+      showCloseButton: _showCloseButton,
+      ...props
+    }: { children?: ReactNode; showCloseButton?: boolean } & Record<string, unknown>) => (
+      <div {...props}>{children}</div>
+    ),
+    DialogTitle: ({ children, ...props }: ComponentProps<"h2">) => <h2 {...props}>{children}</h2>,
+    DialogClose: ({
+      children,
+      render: _render,
+      ...props
+    }: ComponentProps<"button"> & { render?: ReactNode }) => <button {...props}>{children}</button>,
   };
 });
 
@@ -82,6 +113,15 @@ async function show(root: Root, node: ReactNode) {
   await act(async () =>
     root.render(<QueryClientProvider client={queryClient}>{node}</QueryClientProvider>),
   );
+  await settle();
+}
+
+async function openManager(host: ParentNode) {
+  const manage = [...host.querySelectorAll("button")].find((entry) =>
+    entry.textContent?.includes("Manage"),
+  );
+  if (!manage) throw new Error("Missing Manage button");
+  await act(async () => manage.click());
   await settle();
 }
 
@@ -225,6 +265,7 @@ it("deletes a bot memory document after confirmation but never MEMORY.md", async
   };
   try {
     await show(root, <KnowledgeSection botId="bot-fixture" />);
+    await openManager(container);
     await act(async () => button("MEMORY.md").click());
     expect(container.textContent).not.toContain("Delete");
     await act(async () => button("projects/retired.md").click());
@@ -264,6 +305,7 @@ it("downloads only each row’s saved markdown with its own filename", async () 
   const root = createRoot(container);
   try {
     await show(root, <KnowledgeSection botId="bot-fixture" />);
+    await openManager(container);
     const download = container.querySelector<HTMLButtonElement>('[aria-label="Download"]')!;
     expect(download).not.toBeNull();
     expect(download.parentElement?.textContent).toContain("MEMORY.md");
@@ -286,7 +328,7 @@ it("downloads only each row’s saved markdown with its own filename", async () 
       new TextEncoder().encode("Other document"),
     );
     expect(container.querySelector("h3")?.textContent).toBe("Memory");
-    expect(container.querySelector("textarea")).toBeNull();
+    expect(container.querySelector('[aria-label="MEMORY.md"]')).toBeNull();
   } finally {
     await act(async () => root.unmount());
     container.remove();
@@ -294,32 +336,42 @@ it("downloads only each row’s saved markdown with its own filename", async () 
   }
 });
 
-it("hides empty bot memory and limits long lists to five documents", async () => {
+it("always offers a memory manager and lists every document once opened", async () => {
   vi.stubGlobal("IS_REACT_ACT_ENVIRONMENT", true);
   const host = document.createElement("div");
   const root = createRoot(host);
   try {
-    memoryApi.list.mockReset().mockResolvedValueOnce([]);
-    await show(root, <KnowledgeSection key="empty" botId="fixture" />);
-    expect(host.textContent).toBe("");
-    memoryApi.list.mockResolvedValueOnce(
+    memoryApi.list.mockReset().mockResolvedValue([
+      {
+        id: "empty",
+        path: "MEMORY.md",
+        content: "# Fixture\n\n",
+        revision: 1,
+        scope: "bot",
+        botId: "empty-bot",
+        updatedAt: "",
+      },
+    ] as never);
+    await show(root, <KnowledgeSection key="empty" botId="empty-bot" />);
+    expect(host.textContent).toContain("Memory");
+    expect(host.textContent).toContain("Manage");
+    await openManager(host);
+    expect(host.textContent).toContain("MEMORY.md");
+    memoryApi.list.mockReset().mockResolvedValue(
       Array.from({ length: 7 }, (_, i) => ({
         id: `doc-${i}`,
         path: `notes/${i}.md`,
         content: "Fixture",
         revision: 1,
         scope: "bot",
-        botId: "fixture",
+        botId: "busy-bot",
         updatedAt: "",
       })) as never,
     );
-    await show(root, <KnowledgeSection key="busy" botId="fixture" />);
-    expect(host.textContent).not.toContain("notes/6.md");
-    await act(async () =>
-      [...host.querySelectorAll("button")]
-        .find((node) => node.textContent === "Show more")!
-        .click(),
-    );
+    queryClient.clear();
+    await show(root, <KnowledgeSection key="busy" botId="busy-bot" />);
+    await openManager(host);
+    expect(host.textContent).toContain("notes/0.md");
     expect(host.textContent).toContain("notes/6.md");
   } finally {
     await act(async () => root.unmount());
@@ -327,15 +379,26 @@ it("hides empty bot memory and limits long lists to five documents", async () =>
   }
 });
 
-it.each([" \n", "# Fixture\n\n"])("hides empty memory: %j", async (content) => {
+it.each([" \n", "# Fixture\n\n"])("keeps empty memory available to manage: %j", async (content) => {
   vi.stubGlobal("IS_REACT_ACT_ENVIRONMENT", true);
-  memoryApi.list.mockResolvedValueOnce([{ id: "empty", path: "MEMORY.md", content }] as never);
+  memoryApi.list.mockReset().mockResolvedValue([
+    {
+      id: "empty",
+      path: "MEMORY.md",
+      content,
+      revision: 1,
+      scope: "bot",
+      botId: "fixture",
+      updatedAt: "",
+    },
+  ] as never);
   const host = document.createElement("div");
   const root = createRoot(host);
   try {
     await show(root, <KnowledgeSection botId="fixture" />);
-    expect(host.textContent).not.toContain("Memory");
-    expect(host.textContent).not.toContain("MEMORY.md");
+    expect(host.textContent).toContain("Memory");
+    await openManager(host);
+    expect(host.textContent).toContain("MEMORY.md");
   } finally {
     await act(async () => root.unmount());
     vi.unstubAllGlobals();
@@ -353,9 +416,10 @@ it("keeps the last cleared memory document available to reopen in the session", 
     [...host.querySelectorAll("button")].find((node) => node.textContent === text)!;
   try {
     await show(root, <KnowledgeSection botId="fixture" />);
+    await openManager(host);
     await act(async () => button("MEMORY.md").click());
     await act(async () => {
-      const field = host.querySelector("textarea")!;
+      const field = host.querySelector<HTMLTextAreaElement>('[aria-label="MEMORY.md"]')!;
       Object.getOwnPropertyDescriptor(HTMLTextAreaElement.prototype, "value")!.set!.call(field, "");
       field.dispatchEvent(new Event("input", { bubbles: true }));
     });
@@ -367,7 +431,7 @@ it("keeps the last cleared memory document available to reopen in the session", 
     });
     expect(host.textContent).toContain("MEMORY.md");
     await act(async () => button("MEMORY.md").click());
-    expect(host.querySelector("textarea")?.value).toBe("");
+    expect(host.querySelector<HTMLTextAreaElement>('[aria-label="MEMORY.md"]')?.value).toBe("");
   } finally {
     await act(async () => root.unmount());
     vi.unstubAllGlobals();
@@ -385,6 +449,7 @@ it.each(["missing", "failed"])(
     const root = createRoot(host);
     try {
       await show(root, <KnowledgeSection botId="fixture" />);
+      await openManager(host);
       if (result === "missing") memoryApi.list.mockResolvedValueOnce([]);
       else memoryApi.list.mockRejectedValueOnce(new Error("offline"));
       await act(async () =>
@@ -482,6 +547,7 @@ it("says how much memory no longer reaches the bot", async () => {
     } as never);
 
     await show(root, <KnowledgeSection botId="fixture" />);
+    await openManager(host);
 
     expect(host.textContent).toContain("About 20 KB of memory no longer reaches the bot.");
   } finally {

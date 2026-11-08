@@ -3,14 +3,30 @@ import { createProvider } from "@earendil-works/pi-ai";
 import { openAICompletionsApi } from "@earendil-works/pi-ai/api/openai-completions.lazy";
 
 import { declaredVisionModelIds, inputModalities } from "./model-modalities.js";
-import { LOCAL_PROVIDER_ID, localModelIds } from "./pi-local-provider-id.js";
+import {
+  configuredLocalModel,
+  isLocalProvider,
+  LOCAL_MODEL_LABELS_ENV,
+  LOCAL_PROVIDER_ID,
+  localModelIds,
+  localModelLabelEntries,
+  localModelLabels,
+} from "./pi-local-provider-id.js";
 
 /**
  * Local OpenAI-compatible model server (Ollama, LM Studio, llama.cpp, MLX).
  * The server is keyless, but `resolve` returns a placeholder because Models
  * hides providers with no resolvable auth.
  */
-export { LOCAL_PROVIDER_ID };
+export {
+  configuredLocalModel,
+  isLocalProvider,
+  LOCAL_MODEL_LABELS_ENV,
+  LOCAL_PROVIDER_ID,
+  localModelIds,
+  localModelLabelEntries,
+  localModelLabels,
+};
 
 /** Model ids the local server serves with vision, declared by the operator. */
 export const LOCAL_VISION_MODELS_ENV = "RAKAZO_LOCAL_VISION_MODELS";
@@ -56,7 +72,8 @@ function localModel(id: string): Model<"openai-completions"> {
   const reasoning = declaredVisionModelIds(LOCAL_REASONING_MODELS_ENV).has(id);
   return {
     id,
-    name: id,
+    // Catalog label only; the wire request still uses `id`.
+    name: localModelLabelEntries().get(id)?.label ?? id,
     api: "openai-completions",
     provider: LOCAL_PROVIDER_ID,
     baseUrl: localBaseUrl(),

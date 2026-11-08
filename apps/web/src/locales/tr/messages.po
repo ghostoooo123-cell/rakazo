@@ -507,6 +507,7 @@ msgstr "Etkinlik"
 
 #: src/components/integrations/plugin-marketplace.tsx
 #: src/components/SecretAskCard.tsx
+#: src/pages/KnowledgeSection.tsx
 #: src/pages/McpServersOverlay.tsx
 #: src/pages/PluginsOverlay.tsx
 #: src/pages/ScratchpadSection.tsx
@@ -1482,6 +1483,10 @@ msgstr "Entegrasyonları kapat"
 #: src/pages/McpServersOverlay.tsx
 msgid "Close MCP servers"
 msgstr "MCP sunucularını kapat"
+
+#: src/pages/KnowledgeSection.tsx
+msgid "Close memory"
+msgstr ""
 
 #: src/pages/MemorySettingsOverlay.tsx
 #: src/pages/SettingsOverlay.tsx
@@ -3869,6 +3874,7 @@ msgid "Main model"
 msgstr "Ana model"
 
 #: src/pages/BillingSettingsPanel.tsx
+#: src/pages/KnowledgeSection.tsx
 #: src/pages/SettingsOverlay.tsx
 msgid "Manage"
 msgstr "Yönet"
@@ -4310,6 +4316,10 @@ msgstr "Yeni bilgisayarlar şununla çalışır"
 #: src/components/VaultSettings.tsx
 msgid "New contact"
 msgstr "Yeni kişi"
+
+#: src/pages/KnowledgeSection.tsx
+msgid "New fact"
+msgstr ""
 
 #: src/pages/GroupPanel.tsx
 msgid "New group"

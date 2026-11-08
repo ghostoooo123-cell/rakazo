@@ -800,10 +800,8 @@ describeWithDatabase("API authorization and resource isolation", () => {
       resourceIdCalls.map(([procedure, input]) => expectDenied(app, intruder, procedure, input)),
     );
 
-    expect(await rpc<unknown[]>(app, intruder, "memory/list", { botId: ownerBot.id })).toEqual([]);
-    expect(await rpc<string>(app, intruder, "memory/exportMarkdown", { botId: ownerBot.id })).toBe(
-      "",
-    );
+    await expectDenied(app, intruder, "memory/list", { botId: ownerBot.id });
+    await expectDenied(app, intruder, "memory/exportMarkdown", { botId: ownerBot.id });
     expect(await rpc<Array<{ id: string }>>(app, intruder, "capabilities/list")).not.toContainEqual(
       expect.objectContaining({ id: ownerCapability.id }),
     );
